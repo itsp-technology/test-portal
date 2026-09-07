@@ -1,7 +1,17 @@
-const config = {
-  plugins: {
-    "@tailwindcss/postcss": {},
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  output: "export",
+  images: {
+    unoptimized: true,
   },
 };
 
-export default config;
+/** @type {import('postcss-load-config').Config} */
+const config = {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+};
+
+export default nextConfig;
