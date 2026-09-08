@@ -108,3 +108,101 @@ npm run dev
 4. Hard-refresh `http://localhost:3000` (`Ctrl + Shift + R` or `Ctrl + F5`).
 
 The application will now compile and load the full styled UI immediately upon opening.
+
+
+--------------------------------------------------------------------------
+Adding a new chapter test paper takes two steps: writing the Markdown file and registering it in the exam data.
+
+---
+
+### Step 1: Create the Question Paper Markdown File
+
+Create a new file in `public/tests/` named with a unique ID matching your paper (e.g., `public/tests/upsc-polity-preamble.md`).
+
+Format your questions following the standard template:
+
+```markdown
+### Question 1 (MCQ)
+Which of the following words was **NOT** present in the original Preamble adopted on 26th November 1949?
+- A) Sovereign
+- B) Socialist
+- C) Democratic
+- D) Republic
+- Correct: B
+
+### Question 2 (MSQ)
+Which of the following ideals in the Preamble of the Indian Constitution were borrowed from the French Revolution?
+- A) Liberty
+- B) Equality
+- C) Justice
+- D) Fraternity
+- Correct: A, B, D
+
+### Question 3 (NAT)
+How many times has the Preamble of the Constitution of India been amended so far?
+- Answer: 1
+- Correct: 1
+
+```
+
+> **Key Rules for Questions:**
+> * Header: `### Question <number> (<MCQ|MSQ|NAT>)`
+> * Options: `- A) ...`, `- B) ...`
+> * Key: `- Correct: B` (for MCQ), `- Correct: A, B, D` (for MSQ), or `- Correct: 1` (for NAT).
+> * Math/LaTeX formulas: Use `$inline$` or `$$display$$`.
+> * Diagrams: Place a standard ````mermaid` block directly under the prompt text.
+> 
+> 
+
+---
+
+### Step 2: Register the Test in `src/data/exams.ts`
+
+Open `src/data/exams.ts` and add your new test entry into the `AVAILABLE_TESTS` array. Ensure the `id` matches the `.md` filename exactly:
+
+```typescript
+{
+  id: "upsc-polity-preamble", // Exactly matches public/tests/upsc-polity-preamble.md
+  title: "UPSC GS-1: Preamble & Philosophy of Constitution",
+  category: "UPSC",           // "UPSC" | "GATE" | "SSC" | "Railways" | "Defence" | "Banking" | "State Exams"
+  subCategory: "Indian Polity",// Must match one of the stream pills in CATEGORY_TAXONOMY
+  subject: "Indian Polity",
+  chapter: "Preamble & Basic Structure", // Specific chapter name displayed on the card
+  totalQuestions: 3,
+  durationMins: 10,
+  maxMarks: 6,
+  difficulty: "Moderate",
+  badge: "New",
+  isFree: true,
+},
+
+```
+
+---
+
+### Step 3: Verify the Stream Pill in `CATEGORY_TAXONOMY`
+
+Check the `CATEGORY_TAXONOMY` object in `src/data/exams.ts` to confirm that the `subCategory` you assigned is listed under your category:
+
+```typescript
+export const CATEGORY_TAXONOMY: Record<string, string[]> = {
+  UPSC: [
+    "GS Paper I",
+    "CSAT Paper II",
+    "Indian Polity", // Matches subCategory: "Indian Polity"
+    "Ancient History",
+    "Geography",
+    "Economy",
+  ],
+  // ... other categories
+};
+
+```
+
+---
+
+### How It Renders Automatically
+
+* When a student opens the home portal and clicks **UPSC**, the filter drawer opens.
+* Clicking **Indian Polity** will filter down to show your new chapter test: **"Preamble & Basic Structure"**.
+* Clicking **Attempt CBT Now** fetches `/tests/upsc-polity-preamble.md` and immediately launches the test engine.

@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import confetti from "canvas-confetti";
 import { ExamItem, ExamResult, Question } from "@/types/exam";
 import { AVAILABLE_TESTS } from "@/data/exams";
-import { parseMarkdownQuestions } from "@/utils/markdownParser";
+import { parseMarkdownQuestions, shuffleQuestions } from "@/utils/markdownParser";
 import { HomePage } from "@/components/HomePage";
 import { CBTExamEngine } from "@/components/CBTExamEngine";
 import { Scorecard } from "@/components/Scorecard";
@@ -12,7 +12,6 @@ import { ErrorScreen } from "@/components/ErrorScreen";
 import { Loader2 } from "lucide-react";
 
 export function ExamPortal() {
-  // Synchronous client reads directly on mount (safe because ssr: false bypasses server mismatch)
   const [selectedExam, setSelectedExam] = useState<ExamItem | null>(() => {
     if (typeof window !== "undefined") {
       const savedId = localStorage.getItem("cbt_active_exam_id");
@@ -59,7 +58,6 @@ export function ExamPortal() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [userAnswers, setUserAnswers] = useState<Record<number, string[]>>({});
 
-  // Background fetch only if paper was restored on refresh but questions weren't cached
   useEffect(() => {
     if (!selectedExam || questions.length > 0) return;
 
@@ -152,6 +150,24 @@ export function ExamPortal() {
     setErrorMessage(null);
     setQuestions([]);
     setActiveScreen("home");
+  };
+
+  const handleReattempt = () => {
+    if (!selectedExam) return;
+
+    localStorage.removeItem(`cbt_exam_state_${selectedExam.id}_index`);
+    localStorage.removeItem(`cbt_exam_state_${selectedExam.id}_answers`);
+    localStorage.removeItem(`cbt_exam_state_${selectedExam.id}_nat`);
+    localStorage.removeItem(`cbt_exam_state_${selectedExam.id}_review`);
+    localStorage.removeItem(`cbt_exam_state_${selectedExam.id}_visited`);
+    localStorage.removeItem(`cbt_exam_state_${selectedExam.id}_time`);
+
+    const reordered = shuffleQuestions(questions);
+    localStorage.setItem(`cbt_cached_q_${selectedExam.id}`, JSON.stringify(reordered));
+
+    setQuestions(reordered);
+    setUserAnswers({});
+    setActiveScreen("cbt");
   };
 
   const handleSubmitExam = (data: {
@@ -247,9 +263,7 @@ export function ExamPortal() {
         results={calculateResults()}
         questions={questions}
         selectedAnswers={userAnswers}
-        onReattempt={() => {
-          if (selectedExam) loadExamPaper(selectedExam);
-        }}
+        onReattempt={handleReattempt}
         onReturnHome={handleBackToHome}
       />
     );

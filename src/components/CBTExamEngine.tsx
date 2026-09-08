@@ -90,6 +90,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
 
   const answersRef = useRef({ selectedAnswers, natInputs });
 
+  // Update storage safely in effect without render-phase mutation
   useEffect(() => {
     answersRef.current = { selectedAnswers, natInputs };
     localStorage.setItem(`${storageKey}_index`, currentIndex.toString());
@@ -99,6 +100,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
     localStorage.setItem(`${storageKey}_visited`, JSON.stringify(visited));
   }, [currentIndex, selectedAnswers, natInputs, markedForReview, visited, storageKey]);
 
+  // Prevent hard reloads and keyboard shortcuts (F5, Ctrl+R)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "F5" || ((e.ctrlKey || e.metaKey) && (e.key === "r" || e.key === "R"))) {
@@ -197,6 +199,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
       suppressHydrationWarning
       className="min-h-screen bg-[#f0f4f8] flex flex-col justify-between"
     >
+      {/* Top Header */}
       <header className="bg-white border-b border-slate-200 px-4 sm:px-8 py-3 flex items-center justify-between shadow-xs sticky top-0 z-30">
         <div className="flex items-center gap-3">
           <button
@@ -230,6 +233,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
         </div>
       </header>
 
+      {/* CBT Body */}
       <div className="flex-1 flex flex-col lg:flex-row max-w-7xl w-full mx-auto p-4 sm:p-6 gap-6">
         <div className="flex-1 bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs flex flex-col justify-between">
           <div>
@@ -242,39 +246,45 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
               </span>
             </div>
 
+            {/* Prompt without leaked answer keys */}
             <div className="text-sm sm:text-base leading-relaxed text-slate-800 space-y-3 font-normal">
               {currentQ && <MathText content={currentQ.prompt} />}
             </div>
 
             {currentQ?.mermaidChart && <MermaidRenderer chart={currentQ.mermaidChart} />}
 
+            {/* Rendered Options */}
             <div className="mt-6 space-y-3">
               {currentQ && currentQ.type !== "NAT" ? (
-                currentQ.options.map((opt) => {
-                  const isChecked = (selectedAnswers[currentQ.id] || []).includes(opt.key);
-                  return (
-                    <button
-                      key={opt.key}
-                      onClick={() => handleOptionSelect(opt.key)}
-                      className={`w-full text-left p-4 rounded-2xl border transition-all flex items-center gap-4 text-xs sm:text-sm cursor-pointer ${
-                        isChecked
-                          ? "border-blue-600 bg-blue-50/60 text-blue-900 font-bold shadow-xs"
-                          : "border-slate-200 hover:border-slate-300 bg-white text-slate-700 hover:bg-slate-50/50"
-                      }`}
-                    >
-                      <div
-                        className={`w-7 h-7 rounded-xl flex items-center justify-center font-bold text-xs ${
-                          isChecked ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"
+                currentQ.options.length > 0 ? (
+                  currentQ.options.map((opt) => {
+                    const isChecked = (selectedAnswers[currentQ.id] || []).includes(opt.key);
+                    return (
+                      <button
+                        key={opt.key}
+                        onClick={() => handleOptionSelect(opt.key)}
+                        className={`w-full text-left p-4 rounded-2xl border transition-all flex items-center gap-4 text-xs sm:text-sm cursor-pointer ${
+                          isChecked
+                            ? "border-blue-600 bg-blue-50/60 text-blue-900 font-bold shadow-xs"
+                            : "border-slate-200 hover:border-slate-300 bg-white text-slate-700 hover:bg-slate-50/50"
                         }`}
                       >
-                        {opt.key}
-                      </div>
-                      <div className="flex-1">
-                        <MathText content={opt.text} />
-                      </div>
-                    </button>
-                  );
-                })
+                        <div
+                          className={`w-7 h-7 rounded-xl flex items-center justify-center font-bold text-xs ${
+                            isChecked ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"
+                          }`}
+                        >
+                          {opt.key}
+                        </div>
+                        <div className="flex-1">
+                          <MathText content={opt.text} />
+                        </div>
+                      </button>
+                    );
+                  })
+                ) : (
+                  <div className="text-xs text-amber-600 italic">No options detected for this question.</div>
+                )
               ) : (
                 <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl">
                   <label className="block text-xs font-bold text-slate-600 mb-2">
@@ -292,6 +302,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
             </div>
           </div>
 
+          {/* Action Bar */}
           <div className="flex flex-wrap items-center justify-between border-t border-slate-100 pt-5 mt-6 gap-2">
             <div className="flex items-center gap-2">
               <button

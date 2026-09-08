@@ -152,6 +152,20 @@ export const AVAILABLE_TESTS: ExamItem[] = [
     difficulty: "Challenging",
     isFree: true,
   },
+  {
+    id: "upsc-polity-preamble", // Exactly matches public/tests/upsc-polity-preamble.md
+    title: "UPSC GS-1: Preamble & Philosophy of Constitution",
+    category: "UPSC",           // "UPSC" | "GATE" | "SSC" | "Railways" | "Defence" | "Banking" | "State Exams"
+    subCategory: "Indian Polity",// Must match one of the stream pills in CATEGORY_TAXONOMY
+    subject: "Indian Polity",
+    chapter: "Preamble & Basic Structure", // Specific chapter name displayed on the card
+    totalQuestions: 3,
+    durationMins: 10,
+    maxMarks: 6,
+    difficulty: "Moderate",
+    badge: "New",
+    isFree: true,
+  },
 ];
 
 export const CATEGORY_TAXONOMY: Record<string, string[]> = {
