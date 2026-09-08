@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { ExamItem, Question } from "@/types/exam";
 import { MathText } from "@/components/MathText";
-import { MermaidRenderer } from "@/components/MermaidRenderer";
+import { QuestionPalette } from "@/components/QuestionPalette";
 import {
   Clock,
   Send,
@@ -12,6 +13,11 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+
+const MermaidRenderer = dynamic(
+  () => import("@/components/MermaidRenderer").then((m) => m.MermaidRenderer),
+  { ssr: false }
+);
 
 interface CBTExamEngineProps {
   exam: ExamItem;
@@ -84,7 +90,6 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
 
   const answersRef = useRef({ selectedAnswers, natInputs });
 
-  // Update ref and storage safely inside useEffect (NO updates during render)
   useEffect(() => {
     answersRef.current = { selectedAnswers, natInputs };
     localStorage.setItem(`${storageKey}_index`, currentIndex.toString());
@@ -94,7 +99,6 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
     localStorage.setItem(`${storageKey}_visited`, JSON.stringify(visited));
   }, [currentIndex, selectedAnswers, natInputs, markedForReview, visited, storageKey]);
 
-  // Keyboard navigation & reload prevention (F5, Ctrl+R, beforeunload)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "F5" || ((e.ctrlKey || e.metaKey) && (e.key === "r" || e.key === "R"))) {
@@ -116,7 +120,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
     };
   }, []);
 
-  const clearSessionStorage = () => {
+  const clearSessionStorage = useCallback(() => {
     localStorage.removeItem(`${storageKey}_index`);
     localStorage.removeItem(`${storageKey}_answers`);
     localStorage.removeItem(`${storageKey}_nat`);
@@ -124,9 +128,8 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
     localStorage.removeItem(`${storageKey}_visited`);
     localStorage.removeItem(`${storageKey}_time`);
     localStorage.removeItem("cbt_active_exam_id");
-  };
+  }, [storageKey]);
 
-  // Timer: Starts cleanly once, reads from answersRef on auto-submit
   useEffect(() => {
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
@@ -143,7 +146,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [storageKey, onSubmit]);
+  }, [storageKey, onSubmit, clearSessionStorage]);
 
   const handleExitExam = () => {
     if (confirm("Are you sure you want to exit? Your exam progress will be cleared.")) {
@@ -156,6 +159,11 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
     clearSessionStorage();
     onSubmit(answersRef.current);
   };
+
+  const handleSelectQuestionIndex = useCallback((idx: number) => {
+    setCurrentIndex(idx);
+    setVisited((prev) => ({ ...prev, [idx]: true }));
+  }, []);
 
   const currentQ = questions[currentIndex];
 
@@ -185,7 +193,10 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#f0f4f8] flex flex-col justify-between">
+    <div
+      suppressHydrationWarning
+      className="min-h-screen bg-[#f0f4f8] flex flex-col justify-between"
+    >
       <header className="bg-white border-b border-slate-200 px-4 sm:px-8 py-3 flex items-center justify-between shadow-xs sticky top-0 z-30">
         <div className="flex items-center gap-3">
           <button
@@ -348,64 +359,14 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
           </div>
         </div>
 
-        <div className="w-full lg:w-80 bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-6">
-          <span className="font-black text-slate-900 text-xs tracking-wider uppercase block">
-            Question Palette
-          </span>
-
-          <div className="grid grid-cols-5 gap-2.5">
-            {questions.map((q, idx) => {
-              const isAnswered = (selectedAnswers[q.id] || []).length > 0;
-              const isMarked = markedForReview[q.id];
-              const isCurrent = currentIndex === idx;
-
-              let badgeStyle = "bg-slate-100 text-slate-600 hover:bg-slate-200";
-              if (isMarked) {
-                badgeStyle = "bg-purple-600 text-white";
-              } else if (isAnswered) {
-                badgeStyle = "bg-emerald-600 text-white";
-              } else if (visited[idx]) {
-                badgeStyle = "bg-rose-50 text-rose-500 border border-rose-200";
-              }
-
-              return (
-                <button
-                  key={`${q.id}-${idx}`}
-                  onClick={() => {
-                    setCurrentIndex(idx);
-                    setVisited((prev) => ({ ...prev, [idx]: true }));
-                  }}
-                  className={`h-11 w-11 rounded-2xl font-bold text-xs flex items-center justify-center transition cursor-pointer ${badgeStyle} ${
-                    isCurrent
-                      ? "ring-2 ring-blue-600 ring-offset-2 !bg-white !text-blue-600 border border-blue-600 font-black"
-                      : ""
-                  }`}
-                >
-                  {idx + 1}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="border-t border-slate-100 pt-5 space-y-2.5 text-xs text-slate-600 font-medium">
-            <div className="flex items-center gap-2.5">
-              <span className="h-3 w-3 rounded-full bg-emerald-600" />
-              <span>Answered</span>
-            </div>
-            <div className="flex items-center gap-2.5">
-              <span className="h-3 w-3 rounded-full bg-rose-200" />
-              <span>Unanswered</span>
-            </div>
-            <div className="flex items-center gap-2.5">
-              <span className="h-3 w-3 rounded-full bg-purple-600" />
-              <span>Marked for Review</span>
-            </div>
-            <div className="flex items-center gap-2.5">
-              <span className="h-3 w-3 rounded-full bg-slate-200" />
-              <span>Not Visited</span>
-            </div>
-          </div>
-        </div>
+        <QuestionPalette
+          questions={questions}
+          currentIndex={currentIndex}
+          selectedAnswers={selectedAnswers}
+          markedForReview={markedForReview}
+          visited={visited}
+          onSelect={handleSelectQuestionIndex}
+        />
       </div>
     </div>
   );

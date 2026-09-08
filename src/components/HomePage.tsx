@@ -21,7 +21,6 @@ interface HomePageProps {
 const ITEMS_PER_PAGE = 12;
 
 export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
-  // Safe initial state evaluation in client component without cascading renders in useEffect
   const [selectedCategory, setSelectedCategory] = useState<string>(() => {
     if (typeof window !== "undefined") {
       return sessionStorage.getItem("portal_selected_cat") || "All";
@@ -93,7 +92,6 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-800" suppressHydrationWarning>
       <main className="max-w-7xl mx-auto px-3 sm:px-6 py-4">
-        {/* Top Header Bar */}
         <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white rounded-2xl px-4 py-3 sm:px-6 sm:py-3.5 shadow-xs mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
           <div className="flex items-center gap-2.5">
             <div className="h-8 w-8 rounded-xl bg-blue-600 flex items-center justify-center font-bold text-white shadow-xs">
@@ -124,7 +122,6 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
           </div>
         </div>
 
-        {/* Horizontal Category Pill Bar */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-2 mb-3 scrollbar-none">
           <button
             suppressHydrationWarning
@@ -177,7 +174,6 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
           })}
         </div>
 
-        {/* Sub-Category/Stream Options Box */}
         {isSubjectBoxVisible && (
           <div className="bg-white border border-blue-200/80 rounded-2xl p-4 sm:p-5 shadow-xs mb-4 animate-in fade-in slide-in-from-top-2 duration-150">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 mb-3">
@@ -237,7 +233,6 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
           </div>
         )}
 
-        {/* Results Metadata */}
         <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium mb-2.5 px-1">
           <span>
             Showing <strong className="text-slate-800">{filteredTests.length}</strong> mock{" "}
@@ -252,7 +247,6 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
           </span>
         </div>
 
-        {/* 3 Mock Test Cards Per Row Grid */}
         {paginatedTests.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {paginatedTests.map((test, idx) => (
@@ -318,7 +312,6 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
           </div>
         )}
 
-        {/* Pagination Controls */}
         {totalPages > 1 && (
           <div className="flex items-center justify-center gap-1 mt-5 mb-2">
             <button

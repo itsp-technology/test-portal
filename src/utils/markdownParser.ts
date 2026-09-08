@@ -1,64 +1,74 @@
-type Question = {
-  id: number;
-  type: "MCQ" | "MSQ" | "NAT";
-  prompt: string;
-  mermaidChart?: string;
-  options: { key: string; text: string }[];
-  correctAnswers: string[];
-};
+import { Question, QuestionType } from "@/types/exam";
 
-export function parseMarkdownQuestions(rawMarkdown: string): Question[] {
-  const parsed: Question[] = [];
-  const blocks = rawMarkdown.split(/### Question\s+/).filter(Boolean);
+const parseCache = new Map<string, Question[]>();
+
+export function parseMarkdownQuestions(markdown: string): Question[] {
+  if (parseCache.has(markdown)) {
+    return parseCache.get(markdown)!;
+  }
+
+  const questions: Question[] = [];
+  const blocks = markdown.split(/(?=###\s+Question\s+\d+)/g);
 
   blocks.forEach((block) => {
-    const matchHeader = block.match(/^(\d+)\s*\((MCQ|MSQ|NAT)\)/i);
-    if (!matchHeader) return;
+    const trimmed = block.trim();
+    if (!trimmed) return;
 
-    const id = parseInt(matchHeader[1], 10);
-    const type = matchHeader[2].toUpperCase() as Question["type"];
+    const headerMatch = trimmed.match(/###\s+Question\s+(\d+)\s*\((MCQ|MSQ|NAT)\)/i);
+    if (!headerMatch) return;
+
+    const id = parseInt(headerMatch[1], 10);
+    const type = headerMatch[2].toUpperCase() as QuestionType;
 
     let mermaidChart: string | undefined;
-    const mermaidMatch = block.match(/```mermaid([\s\S]*?)```/);
+    const mermaidMatch = trimmed.match(/```mermaid([\s\S]*?)```/);
     if (mermaidMatch) {
       mermaidChart = mermaidMatch[1].trim();
     }
 
-    const lines = block
+    const cleanContent = trimmed
+      .replace(/###\s+Question\s+\d+\s*\((MCQ|MSQ|NAT)\)/i, "")
       .replace(/```mermaid[\s\S]*?```/, "")
-      .split("\n")
-      .slice(1);
+      .trim();
 
+    const lines = cleanContent.split("\n");
     const promptLines: string[] = [];
     const options: { key: string; text: string }[] = [];
-    let correctAnswers: string[] = [];
+    const correctAnswers: string[] = [];
 
-    lines.forEach((rawLine) => {
-      const line = rawLine.trim();
-      const optMatch = line.match(/^[-*]\s*([A-D])\)\s*(.*)/i);
-      const correctMatch = line.match(/^[-*]?\s*Correct:\s*(.*)/i);
-      const answerMatch = line.match(/^[-*]?\s*Answer:\s*(.*)/i);
+    lines.forEach((line) => {
+      const l = line.trim();
+      if (!l) return;
+
+      const optMatch = l.match(/^-\s*([A-D])\)\s*(.*)/i);
+      const correctMatch = l.match(/^-\s*(?:Correct|Answer):\s*(.*)/i);
 
       if (optMatch) {
-        options.push({ key: optMatch[1].toUpperCase(), text: optMatch[2] });
+        options.push({
+          key: optMatch[1].toUpperCase(),
+          text: optMatch[2].trim(),
+        });
       } else if (correctMatch) {
-        correctAnswers = correctMatch[1].split(",").map((s) => s.trim().toUpperCase());
-      } else if (answerMatch && type === "NAT") {
-        correctAnswers = [answerMatch[1].trim()];
-      } else if (line.length > 0 && !line.startsWith("###")) {
-        promptLines.push(line);
+        const rawAnswers = correctMatch[1].split(",");
+        rawAnswers.forEach((ans) => {
+          const sanitized = ans.trim().toUpperCase();
+          if (sanitized) correctAnswers.push(sanitized);
+        });
+      } else {
+        promptLines.push(l);
       }
     });
 
-    parsed.push({
+    questions.push({
       id,
       type,
-      prompt: promptLines.join("\n"),
+      prompt: promptLines.join("\n").trim(),
       mermaidChart,
       options,
       correctAnswers,
     });
   });
 
-  return parsed;
+  parseCache.set(markdown, questions);
+  return questions;
 }
