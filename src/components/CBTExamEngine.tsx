@@ -29,32 +29,124 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
   onExit,
   onSubmit,
 }) => {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [selectedAnswers, setSelectedAnswers] = useState<Record<number, string[]>>({});
-  const [natInputs, setNatInputs] = useState<Record<number, string>>({});
-  const [markedForReview, setMarkedForReview] = useState<Record<number, boolean>>({});
-  const [visited, setVisited] = useState<Record<number, boolean>>({ 0: true });
-  const [timeLeft, setTimeLeft] = useState<number>(exam.durationMins * 60);
+  const storageKey = `cbt_exam_state_${exam.id}`;
 
-  // Keep references to latest user answers for auto-submission without breaking the interval
+  // Restore existing progress from localStorage if student refreshed
+  const [currentIndex, setCurrentIndex] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(`${storageKey}_index`);
+      return saved ? Number(saved) : 0;
+    }
+    return 0;
+  });
+
+  const [selectedAnswers, setSelectedAnswers] = useState<Record<number, string[]>>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(`${storageKey}_answers`);
+      return saved ? JSON.parse(saved) : {};
+    }
+    return {};
+  });
+
+  const [natInputs, setNatInputs] = useState<Record<number, string>>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(`${storageKey}_nat`);
+      return saved ? JSON.parse(saved) : {};
+    }
+    return {};
+  });
+
+  const [markedForReview, setMarkedForReview] = useState<Record<number, boolean>>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(`${storageKey}_review`);
+      return saved ? JSON.parse(saved) : {};
+    }
+    return {};
+  });
+
+  const [visited, setVisited] = useState<Record<number, boolean>>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(`${storageKey}_visited`);
+      return saved ? JSON.parse(saved) : { 0: true };
+    }
+    return { 0: true };
+  });
+
+  const [timeLeft, setTimeLeft] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(`${storageKey}_time`);
+      if (saved !== null) {
+        const val = Number(saved);
+        return val > 0 ? val : exam.durationMins * 60;
+      }
+    }
+    return exam.durationMins * 60;
+  });
+
+  // Reference for fresh answer states during timer completion
   const answersRef = useRef({ selectedAnswers, natInputs });
   answersRef.current = { selectedAnswers, natInputs };
 
-  // Timer: Starts once on mount, does NOT restart on user answers
+  // Save current answers and selections to localStorage
+  useEffect(() => {
+    localStorage.setItem(`${storageKey}_index`, currentIndex.toString());
+    localStorage.setItem(`${storageKey}_answers`, JSON.stringify(selectedAnswers));
+    localStorage.setItem(`${storageKey}_nat`, JSON.stringify(natInputs));
+    localStorage.setItem(`${storageKey}_review`, JSON.stringify(markedForReview));
+    localStorage.setItem(`${storageKey}_visited`, JSON.stringify(visited));
+  }, [currentIndex, selectedAnswers, natInputs, markedForReview, visited, storageKey]);
+
+  // Window unload guard
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
+
+  // Cleanup helper
+  const clearSessionStorage = () => {
+    localStorage.removeItem(`${storageKey}_index`);
+    localStorage.removeItem(`${storageKey}_answers`);
+    localStorage.removeItem(`${storageKey}_nat`);
+    localStorage.removeItem(`${storageKey}_review`);
+    localStorage.removeItem(`${storageKey}_visited`);
+    localStorage.removeItem(`${storageKey}_time`);
+    localStorage.removeItem("cbt_active_exam_id");
+  };
+
+  // Timer
   useEffect(() => {
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
-        if (prev <= 1) {
+        const next = prev - 1;
+        localStorage.setItem(`${storageKey}_time`, next.toString());
+        if (next <= 0) {
           clearInterval(timer);
+          clearSessionStorage();
           onSubmit(answersRef.current);
           return 0;
         }
-        return prev - 1;
+        return next;
       });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [onSubmit]);
+  }, [storageKey, onSubmit]);
+
+  const handleExitExam = () => {
+    if (confirm("Are you sure you want to exit? Your exam progress will be cleared.")) {
+      clearSessionStorage();
+      onExit();
+    }
+  };
+
+  const handleSubmitExam = () => {
+    clearSessionStorage();
+    onSubmit(answersRef.current);
+  };
 
   const currentQ = questions[currentIndex];
 
@@ -64,7 +156,9 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
       setSelectedAnswers((prev) => ({ ...prev, [currentQ.id]: [key] }));
     } else if (currentQ.type === "MSQ") {
       const current = selectedAnswers[currentQ.id] || [];
-      const next = current.includes(key) ? current.filter((k) => k !== key) : [...current, key];
+      const next = current.includes(key)
+        ? current.filter((k) => k !== key)
+        : [...current, key];
       setSelectedAnswers((prev) => ({ ...prev, [currentQ.id]: next }));
     }
   };
@@ -86,11 +180,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
       <header className="bg-white border-b border-slate-200 px-4 sm:px-8 py-3 flex items-center justify-between shadow-xs sticky top-0 z-30">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => {
-              if (confirm("Are you sure you want to exit? Your progress will be lost.")) {
-                onExit();
-              }
-            }}
+            onClick={handleExitExam}
             className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition cursor-pointer"
             title="Exit Exam"
           >
@@ -112,7 +202,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
             <span>{formatTimer(timeLeft)}</span>
           </div>
           <button
-            onClick={() => onSubmit({ selectedAnswers, natInputs })}
+            onClick={handleSubmitExam}
             className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-black px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-md shadow-emerald-600/20 cursor-pointer"
           >
             <Send className="w-3.5 h-3.5" /> Submit
@@ -121,6 +211,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
       </header>
 
       <div className="flex-1 flex flex-col lg:flex-row max-w-7xl w-full mx-auto p-4 sm:p-6 gap-6">
+        {/* Main Question Card */}
         <div className="flex-1 bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-5">
@@ -187,7 +278,10 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
               <button
                 onClick={() => {
                   if (currentQ) {
-                    setMarkedForReview((prev) => ({ ...prev, [currentQ.id]: !prev[currentQ.id] }));
+                    setMarkedForReview((prev) => ({
+                      ...prev,
+                      [currentQ.id]: !prev[currentQ.id],
+                    }));
                   }
                 }}
                 className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
@@ -203,15 +297,15 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
                 onClick={() => {
                   if (!currentQ) return;
                   setSelectedAnswers((prev) => {
-                    const c = { ...prev };
-                    delete c[currentQ.id];
-                    return c;
+                    const next = { ...prev };
+                    delete next[currentQ.id];
+                    return next;
                   });
                   if (currentQ.type === "NAT") {
                     setNatInputs((prev) => {
-                      const c = { ...prev };
-                      delete c[currentQ.id];
-                      return c;
+                      const next = { ...prev };
+                      delete next[currentQ.id];
+                      return next;
                     });
                   }
                 }}
@@ -246,6 +340,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
           </div>
         </div>
 
+        {/* Right Palette */}
         <div className="w-full lg:w-80 bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-6">
           <span className="font-black text-slate-900 text-xs tracking-wider uppercase block">
             Question Palette
@@ -268,7 +363,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
 
               return (
                 <button
-                  key={q.id}
+                  key={`${q.id}-${idx}`}
                   onClick={() => {
                     setCurrentIndex(idx);
                     setVisited((prev) => ({ ...prev, [idx]: true }));

@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import confetti from "canvas-confetti";
-import { ExamItem, ExamResult, Question } from "../types/exam";
-import { parseMarkdownQuestions } from "../utils/markdownParser";
-import { HomePage } from "../components/HomePage";
-import { CBTExamEngine } from "../components/CBTExamEngine";
-import { Scorecard } from "../components/Scorecard";
-import { ErrorScreen } from "../components/ErrorScreen";
+import { ExamItem, ExamResult, Question } from "@/types/exam";
+import { AVAILABLE_TESTS } from "@/data/exams";
+import { parseMarkdownQuestions } from "@/utils/markdownParser";
+import { HomePage } from "@/components/HomePage";
+import { CBTExamEngine } from "@/components/CBTExamEngine";
+import { Scorecard } from "@/components/Scorecard";
+import { ErrorScreen } from "@/components/ErrorScreen";
 import { Loader2 } from "lucide-react";
 
 export default function App() {
@@ -18,11 +19,26 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [userAnswers, setUserAnswers] = useState<Record<number, string[]>>({});
 
-  // Direct asynchronous test loader
+  // Restore session if user refreshed the browser
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const savedExamId = localStorage.getItem("cbt_active_exam_id");
+    if (!savedExamId) return;
+
+    const matched = AVAILABLE_TESTS.find((e) => e.id === savedExamId);
+    if (matched) {
+      loadExamPaper(matched);
+    }
+  }, []);
+
   const loadExamPaper = async (exam: ExamItem) => {
     setSelectedExam(exam);
     setLoading(true);
     setErrorMessage(null);
+
+    // Save active exam ID in storage for reload protection
+    localStorage.setItem("cbt_active_exam_id", exam.id);
 
     try {
       const res = await fetch(`/tests/${exam.id}.md`);
@@ -30,7 +46,7 @@ export default function App() {
       if (!res.ok) {
         if (res.status === 404) {
           throw new Error(
-            `The test paper "${exam.title}" has not been uploaded yet. Please choose another test or check back soon.`
+            `The test paper "${exam.title}" has not been uploaded yet. Please select another mock test or check back soon.`
           );
         }
         throw new Error(`Unable to fetch question paper (HTTP code ${res.status}).`);
@@ -40,15 +56,13 @@ export default function App() {
       const parsed = parseMarkdownQuestions(markdownText);
 
       if (!parsed || parsed.length === 0) {
-        throw new Error(
-          "This question paper is currently empty or improperly formatted."
-        );
+        throw new Error("This question paper is empty or improperly structured.");
       }
 
       setQuestions(parsed);
-      setUserAnswers({});
       setActiveScreen("cbt");
     } catch (err: unknown) {
+      localStorage.removeItem("cbt_active_exam_id");
       const message =
         err instanceof Error
           ? err.message
@@ -60,6 +74,7 @@ export default function App() {
   };
 
   const handleBackToHome = () => {
+    localStorage.removeItem("cbt_active_exam_id");
     setSelectedExam(null);
     setErrorMessage(null);
     setQuestions([]);
@@ -70,6 +85,7 @@ export default function App() {
     selectedAnswers: Record<number, string[]>;
     natInputs: Record<number, string>;
   }) => {
+    localStorage.removeItem("cbt_active_exam_id");
     setUserAnswers(data.selectedAnswers);
     setActiveScreen("result");
     confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
@@ -112,22 +128,20 @@ export default function App() {
     };
   };
 
-  // 1. Loading Screen
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f1f5f9] flex flex-col items-center justify-center p-4">
+      <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center p-4">
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col items-center max-w-sm text-center">
           <Loader2 className="w-8 h-8 text-blue-600 animate-spin mb-3" />
           <h3 className="font-bold text-sm text-slate-800">Loading Test Paper...</h3>
           <p className="text-xs text-slate-400 mt-1">
-            Setting up your exam environment.
+            Setting up your secure exam environment.
           </p>
         </div>
       </div>
     );
   }
 
-  // 2. Error Screen
   if (errorMessage) {
     return (
       <ErrorScreen
@@ -139,12 +153,10 @@ export default function App() {
     );
   }
 
-  // 3. Home Catalog Screen
   if (activeScreen === "home") {
     return <HomePage onSelectExam={loadExamPaper} />;
   }
 
-  // 4. CBT Exam Screen
   if (activeScreen === "cbt" && selectedExam) {
     return (
       <CBTExamEngine
@@ -156,7 +168,6 @@ export default function App() {
     );
   }
 
-  // 5. Scorecard Screen
   if (activeScreen === "result" && selectedExam) {
     return (
       <Scorecard
@@ -164,7 +175,9 @@ export default function App() {
         results={calculateResults()}
         questions={questions}
         selectedAnswers={userAnswers}
-        onReattempt={() => setActiveScreen("cbt")}
+        onReattempt={() => {
+          if (selectedExam) loadExamPaper(selectedExam);
+        }}
         onReturnHome={handleBackToHome}
       />
     );
