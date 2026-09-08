@@ -1,43 +1,114 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import confetti from "canvas-confetti";
 import { ExamItem, ExamResult, Question } from "@/types/exam";
 import { AVAILABLE_TESTS } from "@/data/exams";
 import { parseMarkdownQuestions } from "@/utils/markdownParser";
-import { HomePage } from "@/components/HomePage";
 import { CBTExamEngine } from "@/components/CBTExamEngine";
 import { Scorecard } from "@/components/Scorecard";
 import { ErrorScreen } from "@/components/ErrorScreen";
 import { Loader2 } from "lucide-react";
 
+const HomePage = dynamic(
+  () => import("@/components/HomePage").then((mod) => mod.HomePage),
+  {
+    ssr: false,
+    loading: () => <div className="min-h-screen bg-[#f8fafc]" />,
+  }
+);
+
 export default function App() {
-  const [activeScreen, setActiveScreen] = useState<"home" | "cbt" | "result">("home");
-  const [selectedExam, setSelectedExam] = useState<ExamItem | null>(null);
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [selectedExam, setSelectedExam] = useState<ExamItem | null>(() => {
+    if (typeof window !== "undefined") {
+      const savedId = localStorage.getItem("cbt_active_exam_id");
+      return savedId ? AVAILABLE_TESTS.find((e) => e.id === savedId) || null : null;
+    }
+    return null;
+  });
+
+  const [questions, setQuestions] = useState<Question[]>(() => {
+    if (typeof window !== "undefined") {
+      const savedId = localStorage.getItem("cbt_active_exam_id");
+      if (savedId) {
+        const cached = localStorage.getItem(`cbt_cached_q_${savedId}`);
+        if (cached) {
+          try {
+            return JSON.parse(cached);
+          } catch {
+            return [];
+          }
+        }
+      }
+    }
+    return [];
+  });
+
+  const [activeScreen, setActiveScreen] = useState<"home" | "cbt" | "result">(() => {
+    if (typeof window !== "undefined") {
+      const savedId = localStorage.getItem("cbt_active_exam_id");
+      const cached = savedId ? localStorage.getItem(`cbt_cached_q_${savedId}`) : null;
+      if (savedId && cached) return "cbt";
+    }
+    return "home";
+  });
+
+  // Derived initial loading state: only true if active exam exists without cached questions
+  const [loading, setLoading] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const savedId = localStorage.getItem("cbt_active_exam_id");
+      const cached = savedId ? localStorage.getItem(`cbt_cached_q_${savedId}`) : null;
+      return Boolean(savedId && !cached);
+    }
+    return false;
+  });
+
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [userAnswers, setUserAnswers] = useState<Record<number, string[]>>({});
 
-  // Restore session if user refreshed the browser
+  // Fetch questions if exam ID was restored on refresh but questions weren't cached yet
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (!selectedExam || questions.length > 0) return;
 
-    const savedExamId = localStorage.getItem("cbt_active_exam_id");
-    if (!savedExamId) return;
+    let isMounted = true;
 
-    const matched = AVAILABLE_TESTS.find((e) => e.id === savedExamId);
-    if (matched) {
-      loadExamPaper(matched);
-    }
-  }, []);
+    const fetchPaper = async () => {
+      try {
+        const res = await fetch(`/tests/${selectedExam.id}.md`);
+        if (!res.ok) throw new Error("Could not reload test questions.");
+        const text = await res.text();
+        const parsed = parseMarkdownQuestions(text);
+
+        if (isMounted && parsed.length > 0) {
+          localStorage.setItem(`cbt_cached_q_${selectedExam.id}`, JSON.stringify(parsed));
+          setQuestions(parsed);
+          setActiveScreen("cbt");
+        }
+      } catch (err: unknown) {
+        if (isMounted) {
+          const msg = err instanceof Error ? err.message : "Error restoring exam session.";
+          setErrorMessage(msg);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchPaper();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedExam, questions.length]);
 
   const loadExamPaper = async (exam: ExamItem) => {
     setSelectedExam(exam);
     setLoading(true);
     setErrorMessage(null);
 
-    // Save active exam ID in storage for reload protection
     localStorage.setItem("cbt_active_exam_id", exam.id);
 
     try {
@@ -59,6 +130,7 @@ export default function App() {
         throw new Error("This question paper is empty or improperly structured.");
       }
 
+      localStorage.setItem(`cbt_cached_q_${exam.id}`, JSON.stringify(parsed));
       setQuestions(parsed);
       setActiveScreen("cbt");
     } catch (err: unknown) {
@@ -74,6 +146,15 @@ export default function App() {
   };
 
   const handleBackToHome = () => {
+    if (selectedExam) {
+      localStorage.removeItem(`cbt_cached_q_${selectedExam.id}`);
+      localStorage.removeItem(`cbt_exam_state_${selectedExam.id}_index`);
+      localStorage.removeItem(`cbt_exam_state_${selectedExam.id}_answers`);
+      localStorage.removeItem(`cbt_exam_state_${selectedExam.id}_nat`);
+      localStorage.removeItem(`cbt_exam_state_${selectedExam.id}_review`);
+      localStorage.removeItem(`cbt_exam_state_${selectedExam.id}_visited`);
+      localStorage.removeItem(`cbt_exam_state_${selectedExam.id}_time`);
+    }
     localStorage.removeItem("cbt_active_exam_id");
     setSelectedExam(null);
     setErrorMessage(null);
@@ -85,6 +166,9 @@ export default function App() {
     selectedAnswers: Record<number, string[]>;
     natInputs: Record<number, string>;
   }) => {
+    if (selectedExam) {
+      localStorage.removeItem(`cbt_cached_q_${selectedExam.id}`);
+    }
     localStorage.removeItem("cbt_active_exam_id");
     setUserAnswers(data.selectedAnswers);
     setActiveScreen("result");
@@ -153,11 +237,7 @@ export default function App() {
     );
   }
 
-  if (activeScreen === "home") {
-    return <HomePage onSelectExam={loadExamPaper} />;
-  }
-
-  if (activeScreen === "cbt" && selectedExam) {
+  if (activeScreen === "cbt" && selectedExam && questions.length > 0) {
     return (
       <CBTExamEngine
         exam={selectedExam}
@@ -183,5 +263,5 @@ export default function App() {
     );
   }
 
-  return null;
+  return <HomePage onSelectExam={loadExamPaper} />;
 }

@@ -31,7 +31,6 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
 }) => {
   const storageKey = `cbt_exam_state_${exam.id}`;
 
-  // Restore existing progress from localStorage if student refreshed
   const [currentIndex, setCurrentIndex] = useState<number>(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem(`${storageKey}_index`);
@@ -83,12 +82,11 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
     return exam.durationMins * 60;
   });
 
-  // Reference for fresh answer states during timer completion
   const answersRef = useRef({ selectedAnswers, natInputs });
-  answersRef.current = { selectedAnswers, natInputs };
 
-  // Save current answers and selections to localStorage
+  // Update ref and storage safely inside useEffect (NO updates during render)
   useEffect(() => {
+    answersRef.current = { selectedAnswers, natInputs };
     localStorage.setItem(`${storageKey}_index`, currentIndex.toString());
     localStorage.setItem(`${storageKey}_answers`, JSON.stringify(selectedAnswers));
     localStorage.setItem(`${storageKey}_nat`, JSON.stringify(natInputs));
@@ -96,17 +94,28 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
     localStorage.setItem(`${storageKey}_visited`, JSON.stringify(visited));
   }, [currentIndex, selectedAnswers, natInputs, markedForReview, visited, storageKey]);
 
-  // Window unload guard
+  // Keyboard navigation & reload prevention (F5, Ctrl+R, beforeunload)
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "F5" || ((e.ctrlKey || e.metaKey) && (e.key === "r" || e.key === "R"))) {
+        e.preventDefault();
+      }
+    };
+
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = "";
     };
+
+    window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
   }, []);
 
-  // Cleanup helper
   const clearSessionStorage = () => {
     localStorage.removeItem(`${storageKey}_index`);
     localStorage.removeItem(`${storageKey}_answers`);
@@ -117,7 +126,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
     localStorage.removeItem("cbt_active_exam_id");
   };
 
-  // Timer
+  // Timer: Starts cleanly once, reads from answersRef on auto-submit
   useEffect(() => {
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
@@ -211,7 +220,6 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
       </header>
 
       <div className="flex-1 flex flex-col lg:flex-row max-w-7xl w-full mx-auto p-4 sm:p-6 gap-6">
-        {/* Main Question Card */}
         <div className="flex-1 bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-5">
@@ -340,7 +348,6 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
           </div>
         </div>
 
-        {/* Right Palette */}
         <div className="w-full lg:w-80 bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-6">
           <span className="font-black text-slate-900 text-xs tracking-wider uppercase block">
             Question Palette

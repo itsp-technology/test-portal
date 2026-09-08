@@ -11,7 +11,7 @@ import {
   LayoutGrid,
   CheckCircle2,
   Sparkles,
-  Layers,
+  X,
 } from "lucide-react";
 
 interface HomePageProps {
@@ -21,29 +21,45 @@ interface HomePageProps {
 const ITEMS_PER_PAGE = 12;
 
 export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
-  // Default to "All" so students can see all papers right away
-  const [selectedCategory, setSelectedCategory] = useState<string>("All");
-  const [selectedSubCategory, setSelectedSubCategory] = useState<string>("All");
+  // Safe initial state evaluation in client component without cascading renders in useEffect
+  const [selectedCategory, setSelectedCategory] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return sessionStorage.getItem("portal_selected_cat") || "All";
+    }
+    return "All";
+  });
+
+  const [selectedSubCategory, setSelectedSubCategory] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return sessionStorage.getItem("portal_selected_subcat") || "All";
+    }
+    return "All";
+  });
+
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [currentPage, setCurrentPage] = useState<number>(1);
 
-  const examCategories = Object.keys(CATEGORY_TAXONOMY);
-
-  // Derive subcategory pills based on chosen exam
-  const currentSubCategories = useMemo(() => {
-    if (selectedCategory === "All") {
-      // Gather all subjects across all exams for quick filtering
-      const uniqueSubs = new Set<string>();
-      AVAILABLE_TESTS.forEach((t) => {
-        if (t.subCategory) uniqueSubs.add(t.subCategory);
-        if (t.subject) uniqueSubs.add(t.subject);
-      });
-      return Array.from(uniqueSubs).slice(0, 9);
+  const handleCategorySelect = (cat: string) => {
+    setSelectedCategory(cat);
+    setSelectedSubCategory("All");
+    setCurrentPage(1);
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("portal_selected_cat", cat);
+      sessionStorage.setItem("portal_selected_subcat", "All");
     }
-    return CATEGORY_TAXONOMY[selectedCategory] || [];
-  }, [selectedCategory]);
+  };
 
-  // Main filter
+  const handleSubCategorySelect = (sub: string) => {
+    setSelectedSubCategory(sub);
+    setCurrentPage(1);
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("portal_selected_subcat", sub);
+    }
+  };
+
+  const examCategories = Object.keys(CATEGORY_TAXONOMY);
+  const currentSubCategories = CATEGORY_TAXONOMY[selectedCategory] || [];
+
   const filteredTests = useMemo(() => {
     return AVAILABLE_TESTS.filter((test) => {
       const matchCategory =
@@ -72,14 +88,10 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
     return filteredTests.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   }, [filteredTests, currentPage]);
 
-  const handleCategorySelect = (cat: string) => {
-    setSelectedCategory(cat);
-    setSelectedSubCategory("All");
-    setCurrentPage(1);
-  };
+  const isSubjectBoxVisible = selectedCategory !== "All" && currentSubCategories.length > 0;
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-800">
+    <div className="min-h-screen bg-[#f8fafc] text-slate-800" suppressHydrationWarning>
       <main className="max-w-7xl mx-auto px-3 sm:px-6 py-4">
         {/* Top Header Bar */}
         <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white rounded-2xl px-4 py-3 sm:px-6 sm:py-3.5 shadow-xs mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
@@ -112,141 +124,118 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
           </div>
         </div>
 
-        {/* Sidebar + Subject Grid Selection Panel */}
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden mb-4 flex flex-col md:flex-row min-h-[220px]">
-          {/* Left Vertical Category List */}
-          <div className="w-full md:w-56 border-b md:border-b-0 md:border-r border-slate-200 bg-slate-50/70 p-2 flex md:flex-col gap-1 overflow-x-auto md:overflow-x-visible scrollbar-none">
-            {/* 1. All Test Papers Option */}
-            <button
-              onClick={() => handleCategorySelect("All")}
-              className={`w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-black transition flex items-center justify-between cursor-pointer whitespace-nowrap ${
+        {/* Horizontal Category Pill Bar */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-2 mb-3 scrollbar-none">
+          <button
+            suppressHydrationWarning
+            onClick={() => handleCategorySelect("All")}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+              selectedCategory === "All"
+                ? "bg-blue-600 text-white shadow-xs"
+                : "bg-white text-slate-700 hover:bg-slate-100 border border-slate-200"
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>All Test Papers</span>
+            <span
+              className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-1 ${
                 selectedCategory === "All"
-                  ? "bg-blue-600 text-white shadow-xs"
-                  : "text-slate-700 hover:bg-slate-200/70 hover:text-slate-900"
+                  ? "bg-blue-700 text-white"
+                  : "bg-slate-100 text-slate-600"
               }`}
             >
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>All Test Papers</span>
-              </div>
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                  selectedCategory === "All"
-                    ? "bg-blue-700 text-white"
-                    : "bg-slate-200 text-slate-600"
+              {AVAILABLE_TESTS.length}
+            </span>
+          </button>
+
+          {examCategories.map((cat) => {
+            const isActive = selectedCategory === cat;
+            const count = AVAILABLE_TESTS.filter((t) => t.category === cat).length;
+            return (
+              <button
+                suppressHydrationWarning
+                key={cat}
+                onClick={() => handleCategorySelect(cat)}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                  isActive
+                    ? "bg-slate-900 text-white shadow-xs"
+                    : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
                 }`}
               >
-                {AVAILABLE_TESTS.length}
-              </span>
-            </button>
-
-            {/* Exam Categories */}
-            {examCategories.map((cat) => {
-              const isActive = selectedCategory === cat;
-              const count = AVAILABLE_TESTS.filter((t) => t.category === cat).length;
-              return (
-                <button
-                  key={cat}
-                  onClick={() => handleCategorySelect(cat)}
-                  className={`w-full text-left px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center justify-between cursor-pointer whitespace-nowrap ${
-                    isActive
-                      ? "bg-white text-blue-600 shadow-xs border-l-4 border-blue-600"
-                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                  }`}
-                >
-                  <span>{cat}</span>
-                  <div className="flex items-center gap-1.5">
-                    {count > 0 && (
-                      <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-500 font-semibold">
-                        {count}
-                      </span>
-                    )}
-                    {isActive && (
-                      <ChevronRight className="w-3.5 h-3.5 hidden md:block text-blue-600" />
-                    )}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Right Sub-Category / Stream Options Box */}
-          <div className="flex-1 p-4 sm:p-5 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 mb-3">
-                <div className="flex items-center gap-1.5">
-                  <LayoutGrid className="w-4 h-4 text-blue-600" />
-                  <h2 className="text-xs font-black uppercase tracking-wider text-slate-800">
-                    {selectedCategory === "All"
-                      ? "Popular Streams & Subjects"
-                      : `${selectedCategory} Subjects & Streams`}
-                  </h2>
-                </div>
-                {selectedSubCategory !== "All" && (
-                  <button
-                    onClick={() => {
-                      setSelectedSubCategory("All");
-                      setCurrentPage(1);
-                    }}
-                    className="text-[11px] font-bold text-blue-600 hover:underline cursor-pointer"
+                <span>{cat}</span>
+                {count > 0 && (
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-semibold ${
+                      isActive ? "bg-slate-800 text-slate-200" : "bg-slate-100 text-slate-500"
+                    }`}
                   >
-                    Reset to All {selectedCategory} Papers
-                  </button>
+                    {count}
+                  </span>
                 )}
-              </div>
+              </button>
+            );
+          })}
+        </div>
 
-              {/* 3-Column Subcategory Options */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                <button
-                  onClick={() => {
-                    setSelectedSubCategory("All");
-                    setCurrentPage(1);
-                  }}
-                  className={`px-3 py-2 rounded-xl text-xs font-semibold text-left transition border cursor-pointer flex items-center justify-between ${
-                    selectedSubCategory === "All"
-                      ? "border-blue-600 bg-blue-50/70 text-blue-700 font-bold"
-                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                  }`}
-                >
-                  <span>All Papers</span>
-                  {selectedSubCategory === "All" && (
-                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                  )}
-                </button>
-
-                {currentSubCategories.map((sub) => {
-                  const isSelected = selectedSubCategory === sub;
-                  return (
-                    <button
-                      key={sub}
-                      onClick={() => {
-                        setSelectedSubCategory(sub);
-                        setCurrentPage(1);
-                      }}
-                      className={`px-3 py-2 rounded-xl text-xs font-semibold text-left transition border cursor-pointer flex items-center justify-between ${
-                        isSelected
-                          ? "border-blue-600 bg-blue-50/70 text-blue-700 font-bold"
-                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                      }`}
-                    >
-                      <span className="truncate">{sub}</span>
-                      {isSelected && (
-                        <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                      )}
-                    </button>
-                  );
-                })}
+        {/* Sub-Category/Stream Options Box */}
+        {isSubjectBoxVisible && (
+          <div className="bg-white border border-blue-200/80 rounded-2xl p-4 sm:p-5 shadow-xs mb-4 animate-in fade-in slide-in-from-top-2 duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 mb-3">
+              <div className="flex items-center gap-1.5">
+                <LayoutGrid className="w-4 h-4 text-blue-600" />
+                <h2 className="text-xs font-black uppercase tracking-wider text-slate-800">
+                  {selectedCategory} Subjects & Streams
+                </h2>
               </div>
+              <button
+                suppressHydrationWarning
+                onClick={() => handleCategorySelect("All")}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer flex items-center gap-1 text-[11px] font-bold"
+                title="Close filter"
+              >
+                <X className="w-3.5 h-3.5" /> Close Filter
+              </button>
             </div>
 
-            <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-medium mt-3">
-              <Layers className="w-3.5 h-3.5 text-slate-400" />
-              <span>
-                Select any subject or category to narrow down mock tests and chapter drills below.
-              </span>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+              <button
+                suppressHydrationWarning
+                onClick={() => handleSubCategorySelect("All")}
+                className={`px-3 py-2 rounded-xl text-xs font-semibold text-left transition border cursor-pointer flex items-center justify-between ${
+                  selectedSubCategory === "All"
+                    ? "border-blue-600 bg-blue-50/70 text-blue-700 font-bold"
+                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                <span>All {selectedCategory} Papers</span>
+                {selectedSubCategory === "All" && (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                )}
+              </button>
+
+              {currentSubCategories.map((sub) => {
+                const isSelected = selectedSubCategory === sub;
+                return (
+                  <button
+                    suppressHydrationWarning
+                    key={sub}
+                    onClick={() => handleSubCategorySelect(sub)}
+                    className={`px-3 py-2 rounded-xl text-xs font-semibold text-left transition border cursor-pointer flex items-center justify-between ${
+                      isSelected
+                        ? "border-blue-600 bg-blue-50/70 text-blue-700 font-bold"
+                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    <span className="truncate">{sub}</span>
+                    {isSelected && (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
-        </div>
+        )}
 
         {/* Results Metadata */}
         <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium mb-2.5 px-1">
@@ -313,6 +302,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
 
                 <div className="mt-3 pt-2 border-t border-slate-100">
                   <button
+                    suppressHydrationWarning
                     onClick={() => onSelectExam(test)}
                     className="w-full bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-bold py-1.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1 transition cursor-pointer"
                   >
@@ -324,14 +314,15 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
           </div>
         ) : (
           <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-400 text-xs">
-            No mock test papers found for this selection. Try selecting &quot;All Papers&quot; or clearing your search.
+            No mock test papers found for this selection. Try selecting another stream or clearing the search.
           </div>
         )}
 
-        {/* Pagination Bar */}
+        {/* Pagination Controls */}
         {totalPages > 1 && (
           <div className="flex items-center justify-center gap-1 mt-5 mb-2">
             <button
+              suppressHydrationWarning
               onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
               disabled={currentPage === 1}
               className="p-1.5 border border-slate-200 rounded-lg bg-white text-slate-600 disabled:opacity-40 hover:bg-slate-50 transition cursor-pointer"
@@ -342,6 +333,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
 
             {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
               <button
+                suppressHydrationWarning
                 key={page}
                 onClick={() => setCurrentPage(page)}
                 className={`h-7 w-7 rounded-lg text-xs font-bold transition cursor-pointer ${
@@ -355,12 +347,13 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
             ))}
 
             <button
+              suppressHydrationWarning
               onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
               disabled={currentPage === totalPages}
               className="p-1.5 border border-slate-200 rounded-lg bg-white text-slate-600 disabled:opacity-40 hover:bg-slate-50 transition cursor-pointer"
               aria-label="Next Page"
             >
-              <ChevronRight className="w-3.5 h-3.5" />
+              <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         )}
