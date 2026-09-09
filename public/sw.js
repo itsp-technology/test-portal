@@ -1,55 +1,59 @@
 // public/sw.js
+const CACHE_NAME = "cbt-offline-v3";
 
-const CACHE_NAME = "cbt-exam-portal-v2";
-
-// Core static assets needed to boot the app offline
-const PRECACHE_ASSETS = [
+// Pre-cache root variants and static manifest
+const PRECACHE_URLS = [
   "/",
+  "/index.html",
   "/manifest.json",
   "/icon-192.png",
-  "/icon-512.png",
+  "/icon-512.png"
 ];
 
-// Install: Cache core shell immediately and activate without waiting
+// 1. Install & Force Pre-cache
 self.addEventListener("install", (event) => {
+  self.skipWaiting();
   event.waitUntil(
-    caches
-      .open(CACHE_NAME)
-      .then((cache) => cache.addAll(PRECACHE_ASSETS))
-      .then(() => self.skipWaiting())
-      .catch((err) => {
-        // Fail-safe: don't abort install if one optional icon is missing
-        console.warn("Pre-cache warning:", err);
-        return self.skipWaiting();
-      })
+    caches.open(CACHE_NAME).then((cache) => {
+      return Promise.all(
+        PRECACHE_URLS.map((url) =>
+          fetch(url, { cache: "reload" })
+            .then((res) => {
+              if (res.ok) return cache.put(url, res);
+            })
+            .catch(() => {
+              // Ignore single asset error during initial build
+            })
+        )
+      );
+    })
   );
 });
 
-// Activate: Purge old cache versions instantly and take control
+// 2. Activate & Claim Clients Immediately
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys
-            .filter((key) => key !== CACHE_NAME)
-            .map((key) => caches.delete(key))
-        )
+    caches.keys().then((keys) =>
+      Promise.all(
+        keys.map((key) => {
+          if (key !== CACHE_NAME) {
+            return caches.delete(key);
+          }
+        })
       )
-      .then(() => self.clients.claim())
+    ).then(() => self.clients.claim())
   );
 });
 
-// Fetch: High-Performance Cache Strategy
+// 3. Fetch Strategy: Cache-First for assets, Fallback to Shell on Navigation
 self.addEventListener("fetch", (event) => {
-  const { request } = event;
-  const url = new URL(request.url);
+  const req = event.request;
+  const url = new URL(req.url);
 
-  // 1. Only intercept standard GET requests
-  if (request.method !== "GET") return;
+  // Skip non-GET requests
+  if (req.method !== "GET") return;
 
-  // 2. Never cache dynamic translation APIs or external RPCs
+  // Don't intercept live translation calls or external APIs
   if (
     url.hostname.includes("googleapis.com") ||
     url.hostname.includes("mymemory") ||
@@ -58,44 +62,50 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // 3. Stale-While-Revalidate / Cache-First for static assets & pages
-  event.respondWith(
-    caches.match(request).then((cachedResponse) => {
-      // Background network refresh
-      const networkFetch = fetch(request)
-        .then((networkResponse) => {
-          if (
-            networkResponse &&
-            networkResponse.status === 200 &&
-            networkResponse.type === "basic"
-          ) {
-            const responseClone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(request, responseClone);
-            });
+  // Handle page navigations (opening the app or reloading offline)
+  if (req.mode === "navigate") {
+    event.respondWith(
+      fetch(req)
+        .then((networkRes) => {
+          if (networkRes && networkRes.status === 200) {
+            const clone = networkRes.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
           }
-          return networkResponse;
+          return networkRes;
+        })
+        .catch(async () => {
+          // OFFLINE: Return cached index.html or root
+          const cache = await caches.open(CACHE_NAME);
+          const cachedHome =
+            (await cache.match("/")) ||
+            (await cache.match("/index.html"));
+          return cachedHome || Response.error();
+        })
+    );
+    return;
+  }
+
+  // Handle JS, CSS, KaTeX fonts, and static files
+  event.respondWith(
+    caches.match(req, { ignoreSearch: true }).then((cached) => {
+      if (cached) return cached;
+
+      return fetch(req)
+        .then((networkRes) => {
+          if (
+            networkRes &&
+            networkRes.status === 200 &&
+            (url.origin === self.location.origin)
+          ) {
+            const clone = networkRes.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
+          }
+          return networkRes;
         })
         .catch(() => {
-          // Network failed (offline)
-          return null;
+          // If offline and requesting something unknown, return empty or cached root
+          return Response.error();
         });
-
-      // If cached locally, return it immediately (0ms); otherwise wait for network
-      return (
-        cachedResponse ||
-        networkFetch.then((res) => {
-          if (res) return res;
-          // Fallback to cached root if navigating between pages offline
-          if (request.mode === "navigate") {
-            return caches.match("/");
-          }
-          return new Response("Network offline", {
-            status: 503,
-            statusText: "Offline",
-          });
-        })
-      );
     })
   );
 });

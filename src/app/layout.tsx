@@ -49,13 +49,26 @@ export default function RootLayout({
       <body className="bg-[#f8fafc] dark:bg-[#090d16] text-slate-900 dark:text-slate-100 antialiased min-h-screen transition-colors duration-150">
         {children}
 
-        {/* Service Worker Registration */}
+        {/* High-Reliability Offline Service Worker Registration */}
         <Script id="sw-register" strategy="afterInteractive">
           {`
-            if ('serviceWorker' in navigator) {
-              window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js').catch(() => {});
-              });
+            if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+              const registerSW = function() {
+                navigator.serviceWorker
+                  .register('/sw.js', { scope: '/' })
+                  .then(function(reg) {
+                    if (reg.waiting) {
+                      reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                    }
+                  })
+                  .catch(function() {});
+              };
+
+              if (document.readyState === 'complete') {
+                registerSW();
+              } else {
+                window.addEventListener('load', registerSW);
+              }
             }
           `}
         </Script>
