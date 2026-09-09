@@ -6,6 +6,7 @@ import { ExamItem, Question } from "@/types/exam";
 import { MathText } from "@/components/MathText";
 import { QuestionPalette } from "@/components/QuestionPalette";
 import { ExamTimer } from "@/components/ExamTimer";
+import { ConfirmModal } from "@/components/ConfirmModal";
 import { translateTextToHindi } from "@/utils/translate";
 import {
   Send,
@@ -73,7 +74,16 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
     return saved ? JSON.parse(saved) : { 0: true };
   });
 
-  // Per-question Hindi translation state
+  // Custom Confirmation Dialog State
+  const [modalState, setModalState] = useState<{
+    isOpen: boolean;
+    type: "exit" | "submit" | "reload";
+  }>({
+    isOpen: false,
+    type: "exit",
+  });
+
+  // Translation states
   const [translatedMap, setTranslatedMap] = useState<
     Record<number, { prompt: string; options: { key: string; text: string }[] }>
   >({});
@@ -83,6 +93,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
   const [isMobilePaletteOpen, setIsMobilePaletteOpen] = useState<boolean>(false);
   const answersRef = useRef({ selectedAnswers, natInputs });
 
+  // Real-time asynchronous state sync
   useEffect(() => {
     answersRef.current = { selectedAnswers, natInputs };
     const timeoutId = setTimeout(() => {
@@ -96,24 +107,33 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
     return () => clearTimeout(timeoutId);
   }, [currentIndex, selectedAnswers, natInputs, markedForReview, visited, storageKey]);
 
+  // Intercept Navigation & Refresh to trigger custom dialog
   useEffect(() => {
+    // 1. History lock: trap back/reload button
+    window.history.pushState(null, "", window.location.href);
+
+    const handlePopState = () => {
+      window.history.pushState(null, "", window.location.href);
+      setModalState({ isOpen: true, type: "reload" });
+    };
+
+    // 2. Keyboard shortcuts: F5, Ctrl+R, Cmd+R
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "F5" || ((e.ctrlKey || e.metaKey) && (e.key === "r" || e.key === "R"))) {
+      if (
+        e.key === "F5" ||
+        ((e.ctrlKey || e.metaKey) && (e.key === "r" || e.key === "R"))
+      ) {
         e.preventDefault();
+        setModalState({ isOpen: true, type: "reload" });
       }
     };
 
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = "";
-    };
-
+    window.addEventListener("popstate", handlePopState);
     window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("beforeunload", handleBeforeUnload);
 
     return () => {
+      window.removeEventListener("popstate", handlePopState);
       window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, []);
 
@@ -127,17 +147,22 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
     localStorage.removeItem("cbt_active_exam_id");
   }, [storageKey]);
 
-  const handleExitExam = () => {
-    if (confirm("Are you sure you want to exit? Your exam progress will be cleared.")) {
-      clearSessionStorage();
-      onExit();
-    }
+  const handleConfirmExit = () => {
+    clearSessionStorage();
+    setModalState({ isOpen: false, type: "exit" });
+    onExit();
   };
 
-  const handleSubmitExam = useCallback(() => {
+  const handleConfirmSubmit = useCallback(() => {
     clearSessionStorage();
+    setModalState({ isOpen: false, type: "submit" });
     onSubmit(answersRef.current);
   }, [clearSessionStorage, onSubmit]);
+
+  const handleConfirmReload = () => {
+    setModalState({ isOpen: false, type: "reload" });
+    window.location.reload();
+  };
 
   const handleSelectQuestionIndex = useCallback((idx: number) => {
     setCurrentIndex(idx);
@@ -147,7 +172,6 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
   const currentQ = questions[currentIndex];
   const isCurrentInHindi = currentQ ? activeQuestionLang[currentQ.id] === "hi" : false;
 
-  // Toggle translation on-demand for the current question only
   const handleToggleCurrentQuestionLang = async () => {
     if (!currentQ) return;
 
@@ -240,11 +264,11 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
       suppressHydrationWarning
       className="min-h-screen bg-[#f0f4f8] flex flex-col justify-between pb-16 lg:pb-0"
     >
-      {/* Top Fixed Header */}
+      {/* Top Header */}
       <header className="bg-white border-b border-slate-200 px-3 sm:px-8 py-2.5 sm:py-3 flex items-center justify-between shadow-xs sticky top-0 z-30 select-none">
         <div className="flex items-center gap-2 sm:gap-3 truncate pr-2">
           <button
-            onClick={handleExitExam}
+            onClick={() => setModalState({ isOpen: true, type: "exit" })}
             className="p-1.5 sm:p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition cursor-pointer shrink-0"
             title="Exit Exam"
           >
@@ -264,10 +288,10 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
           <ExamTimer
             storageKey={storageKey}
             initialMinutes={exam.durationMins}
-            onTimeUp={handleSubmitExam}
+            onTimeUp={handleConfirmSubmit}
           />
           <button
-            onClick={handleSubmitExam}
+            onClick={() => setModalState({ isOpen: true, type: "submit" })}
             className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-black px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl transition flex items-center gap-1.5 shadow-md shadow-emerald-600/20 cursor-pointer"
           >
             <Send className="w-3.5 h-3.5" />
@@ -280,7 +304,6 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
       <div className="flex-1 flex flex-col lg:flex-row max-w-7xl w-full mx-auto p-3 sm:p-6 gap-4 sm:gap-6">
         <section className="flex-1 bg-white rounded-2xl sm:rounded-3xl border border-slate-200 p-4 sm:p-8 shadow-xs flex flex-col justify-between">
           <div>
-            {/* Question Header & On-Demand Language Toggle */}
             <div className="flex flex-wrap items-center justify-between border-b border-slate-100 pb-3 mb-4 sm:mb-5 gap-2 select-none">
               <div className="flex items-center gap-2">
                 <span className="text-xs sm:text-sm font-black uppercase tracking-wider text-blue-600">
@@ -305,7 +328,6 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
               </div>
 
               <div className="flex items-center gap-2">
-                {/* On-Demand Per-Question Hindi Switch */}
                 <button
                   type="button"
                   onClick={handleToggleCurrentQuestionLang}
@@ -338,7 +360,6 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
               </div>
             )}
 
-            {/* Render Question Text */}
             <div className="text-sm sm:text-base leading-relaxed text-slate-800 space-y-3 font-normal">
               {currentDisplayPrompt && <MathText content={currentDisplayPrompt} />}
             </div>
@@ -349,7 +370,6 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
               </div>
             )}
 
-            {/* Render Options */}
             <div className="mt-5 sm:mt-6 space-y-2.5 sm:space-y-3">
               {currentQ && currentQ.type !== "NAT" ? (
                 currentDisplayOptions.length > 0 ? (
@@ -485,7 +505,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
           </div>
         </section>
 
-        {/* Question Palette Sidebar */}
+        {/* Question Palette */}
         <QuestionPalette
           questions={questions}
           currentIndex={currentIndex}
@@ -498,7 +518,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
         />
       </div>
 
-      {/* Mobile Sticky Touch Navigation */}
+      {/* Mobile Sticky Navigation */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 p-2.5 px-3 flex items-center justify-between gap-1.5 shadow-lg z-40 select-none">
         <button
           onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
@@ -561,6 +581,48 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
           <ChevronRight className="w-3.5 h-3.5" />
         </button>
       </div>
+
+      {/* Unified Custom Modal */}
+      <ConfirmModal
+        isOpen={modalState.isOpen}
+        type={modalState.type}
+        title={
+          modalState.type === "exit"
+            ? "Are you sure you want to leave the exam?"
+            : modalState.type === "reload"
+            ? "Reload this examination session?"
+            : "Ready to submit your test paper?"
+        }
+        message={
+          modalState.type === "exit"
+            ? "Dear candidate, leaving now will end your active test attempt and return you to the home catalog."
+            : modalState.type === "reload"
+            ? "Dear candidate, your responses and remaining test time are saved automatically. Reloading during an ongoing examination is not advised, but your progress will remain intact if you proceed."
+            : `You have answered ${answeredQuestionsCount} out of ${questions.length} questions. Are you sure you wish to conclude your attempt and view your scorecard?`
+        }
+        confirmText={
+          modalState.type === "exit"
+            ? "Yes, Exit Exam"
+            : modalState.type === "reload"
+            ? "Reload Anyway"
+            : "Yes, Submit Test"
+        }
+        cancelText={
+          modalState.type === "reload"
+            ? "Continue Exam"
+            : modalState.type === "exit"
+            ? "Stay in Exam"
+            : "Review Answers"
+        }
+        onConfirm={
+          modalState.type === "exit"
+            ? handleConfirmExit
+            : modalState.type === "reload"
+            ? handleConfirmReload
+            : handleConfirmSubmit
+        }
+        onCancel={() => setModalState({ isOpen: false, type: "exit" })}
+      />
     </div>
   );
 };

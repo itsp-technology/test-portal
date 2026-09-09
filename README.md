@@ -206,3 +206,129 @@ export const CATEGORY_TAXONOMY: Record<string, string[]> = {
 * When a student opens the home portal and clicks **UPSC**, the filter drawer opens.
 * Clicking **Indian Polity** will filter down to show your new chapter test: **"Preamble & Basic Structure"**.
 * Clicking **Attempt CBT Now** fetches `/tests/upsc-polity-preamble.md` and immediately launches the test engine.
+
+-------------------------------------------------------------------------------------------------------
+
+---
+
+
+Here is the exact step-by-step workflow to create new folders and register new test papers without any confusion.
+
+---
+
+### Step 1: Create the Folder and Markdown File
+
+All test folders and files must live inside your project's `public/tests/` directory.
+
+**Folder Structure Example:**
+
+```text
+public/
+└── tests/
+    ├── ssc/
+    │   └── cgl/
+    │       └── ssc-cgl-mock-1.md
+    └── gate/
+        └── cse/
+            └── discrete-math-set1.md
+
+```
+
+1. Inside `public/tests/`, create your desired category/exam subfolders (e.g., `ssc/cgl/` or `gate/cse/`).
+2. Inside that subfolder, create your `.md` file (e.g., `ssc-cgl-mock-1.md`).
+
+---
+
+### Step 2: Format the Questions in the `.md` File
+
+Ensure every question follows standard formatting tags (`MCQ`, `MSQ`, or `NAT`) and ends with `- Correct:` or `- Answer:`.
+
+```markdown
+### Question 1 (MCQ)
+Select the related word from the given alternatives:
+**Thermometer : Temperature :: Hygrometer : ?**
+- A) Pressure
+- B) Density
+- C) Humidity
+- D) Depth
+- Correct: C
+
+### Question 2 (MSQ)
+Which of the following numbers are prime?
+- A) 2
+- B) 3
+- C) 4
+- D) 5
+- Correct: A, B, D
+
+### Question 3 (NAT)
+If $x + 5 = 12$, what is the numerical value of $x$?
+- Correct: 7
+
+```
+
+---
+
+### Step 3: Register the Paper in `src/data/exams.ts`
+
+Open `src/data/exams.ts` and perform two simple additions:
+
+#### 1. Add the Category / Stream (if new)
+
+Under `CATEGORY_TAXONOMY`, make sure your category and sub-category exist:
+
+```typescript
+export const CATEGORY_TAXONOMY: Record<string, string[]> = {
+  SSC: [
+    "SSC CGL",
+    "SSC CHSL",
+    "SSC MTS",
+  ],
+  GATE: [
+    "Computer Science",
+    "Discrete Mathematics",
+  ],
+  // Add new categories here if needed
+};
+
+```
+
+#### 2. Register the Test in `AVAILABLE_TESTS`
+
+Add your paper object to the `AVAILABLE_TESTS` array.
+
+* **`id`**: Unique string slug used for saving exam state in `localStorage` (keep it clean, e.g. `ssc-cgl-mock-1`).
+* **`filePath`**: The exact path starting with `tests/...` matching where you created the file in Step 1.
+
+```typescript
+export const AVAILABLE_TESTS: ExamItem[] = [
+  // Existing papers...
+
+  // Your New Test Paper:
+  {
+    id: "ssc-cgl-mock-1",
+    filePath: "tests/ssc/cgl/ssc-cgl-mock-1.md", // Relative path inside public/
+    title: "SSC CGL 2026: Tier-1 Full Mock Test 01",
+    category: "SSC",
+    subCategory: "SSC CGL",
+    subject: "Full Length Mock",
+    chapter: "Reasoning, GA, Quantitative & English",
+    totalQuestions: 25,
+    durationMins: 60,
+    maxMarks: 50,
+    difficulty: "Moderate",
+    isFree: true,
+  },
+];
+
+```
+
+---
+
+### Step 4: Test in the Browser
+
+1. Start your local server (`npm run dev`) if it is not already running.
+2. Open `http://localhost:3000`.
+3. Filter by the category tab (e.g., **SSC**).
+4. Click **Attempt CBT Now** on the newly created card.
+5. Confirm the instructions page opens, tick the declaration box, and verify that the questions load with zero latency.
