@@ -91,10 +91,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-800" suppressHydrationWarning>
-      <main className="max-w-7xl mx-auto px-3 sm:px-6 py-4">
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4">
+        {/* Top Header */}
         <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white rounded-2xl px-4 py-3 sm:px-6 sm:py-3.5 shadow-xs mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
           <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-xl bg-blue-600 flex items-center justify-center font-bold text-white shadow-xs">
+            <div className="h-8 w-8 rounded-xl bg-blue-600 flex items-center justify-center font-bold text-white shadow-xs shrink-0">
               <BookOpen className="w-4 h-4" />
             </div>
             <div>
@@ -122,11 +123,12 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-2 mb-3 scrollbar-none">
+        {/* Touch-Friendly Category Tabs (Mobile Scrollable) */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-2 mb-3 scrollbar-none touch-pan-x">
           <button
             suppressHydrationWarning
             onClick={() => handleCategorySelect("All")}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer shrink-0 ${
               selectedCategory === "All"
                 ? "bg-blue-600 text-white shadow-xs"
                 : "bg-white text-slate-700 hover:bg-slate-100 border border-slate-200"
@@ -153,7 +155,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
                 suppressHydrationWarning
                 key={cat}
                 onClick={() => handleCategorySelect(cat)}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer shrink-0 ${
                   isActive
                     ? "bg-slate-900 text-white shadow-xs"
                     : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
@@ -174,8 +176,9 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
           })}
         </div>
 
+        {/* Sub-Category/Stream Drawer */}
         {isSubjectBoxVisible && (
-          <div className="bg-white border border-blue-200/80 rounded-2xl p-4 sm:p-5 shadow-xs mb-4 animate-in fade-in slide-in-from-top-2 duration-150">
+          <div className="bg-white border border-blue-200/80 rounded-2xl p-3.5 sm:p-5 shadow-xs mb-3 sm:mb-4 animate-in fade-in slide-in-from-top-2 duration-150">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 mb-3">
               <div className="flex items-center gap-1.5">
                 <LayoutGrid className="w-4 h-4 text-blue-600" />
@@ -197,15 +200,15 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
               <button
                 suppressHydrationWarning
                 onClick={() => handleSubCategorySelect("All")}
-                className={`px-3 py-2 rounded-xl text-xs font-semibold text-left transition border cursor-pointer flex items-center justify-between ${
+                className={`px-2.5 sm:px-3 py-2 rounded-xl text-xs font-semibold text-left transition border cursor-pointer flex items-center justify-between ${
                   selectedSubCategory === "All"
                     ? "border-blue-600 bg-blue-50/70 text-blue-700 font-bold"
                     : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                 }`}
               >
-                <span>All {selectedCategory} Papers</span>
+                <span className="truncate">All {selectedCategory}</span>
                 {selectedSubCategory === "All" && (
-                  <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0 ml-1" />
                 )}
               </button>
 
@@ -216,7 +219,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
                     suppressHydrationWarning
                     key={sub}
                     onClick={() => handleSubCategorySelect(sub)}
-                    className={`px-3 py-2 rounded-xl text-xs font-semibold text-left transition border cursor-pointer flex items-center justify-between ${
+                    className={`px-2.5 sm:px-3 py-2 rounded-xl text-xs font-semibold text-left transition border cursor-pointer flex items-center justify-between ${
                       isSelected
                         ? "border-blue-600 bg-blue-50/70 text-blue-700 font-bold"
                         : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
@@ -224,7 +227,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
                   >
                     <span className="truncate">{sub}</span>
                     {isSelected && (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                      <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0 ml-1" />
                     )}
                   </button>
                 );
@@ -233,7 +236,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
           </div>
         )}
 
-        <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium mb-2.5 px-1">
+        {/* Results Metadata */}
+        <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-slate-500 font-medium mb-2.5 px-1">
           <span>
             Showing <strong className="text-slate-800">{filteredTests.length}</strong> mock{" "}
             {filteredTests.length === 1 ? "paper" : "papers"} in{" "}
@@ -247,6 +251,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
           </span>
         </div>
 
+        {/* 3 Mock Test Cards Per Row Grid */}
         {paginatedTests.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {paginatedTests.map((test, idx) => (
@@ -256,7 +261,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
               >
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[9.5px] font-extrabold uppercase px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md">
+                    <span className="text-[9.5px] font-extrabold uppercase px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md truncate max-w-[70%]">
                       {test.subCategory || test.category}
                     </span>
                     <span className="text-[9px] font-bold px-1.5 py-0.2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded">
@@ -298,7 +303,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
                   <button
                     suppressHydrationWarning
                     onClick={() => onSelectExam(test)}
-                    className="w-full bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-bold py-1.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1 transition cursor-pointer"
+                    className="w-full bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-bold py-2 px-3 rounded-xl text-xs flex items-center justify-center gap-1 transition cursor-pointer"
                   >
                     Attempt CBT Now <ChevronRight className="w-3.5 h-3.5" />
                   </button>
@@ -307,11 +312,12 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
             ))}
           </div>
         ) : (
-          <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-400 text-xs">
+          <div className="bg-white border border-slate-200 rounded-2xl p-10 text-center text-slate-400 text-xs">
             No mock test papers found for this selection. Try selecting another stream or clearing the search.
           </div>
         )}
 
+        {/* Pagination Bar */}
         {totalPages > 1 && (
           <div className="flex items-center justify-center gap-1 mt-5 mb-2">
             <button
