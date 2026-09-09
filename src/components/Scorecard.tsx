@@ -100,7 +100,9 @@ export const Scorecard: React.FC<ScorecardProps> = ({
                     {!isAttempted ? "Unattempted" : isCorrect ? "Correct (+2)" : "Incorrect"}
                   </span>
                 </div>
-                <MathText content={q.prompt} className="text-slate-800 block" />
+                <div className="text-slate-800">
+                  <MathText content={q.prompt} />
+                </div>
                 <div className="text-[11px] pt-2 border-t border-slate-100 text-slate-600 flex gap-4">
                   <span>
                     Your: <strong className="text-slate-900">{userAns.join(", ") || "None"}</strong>
