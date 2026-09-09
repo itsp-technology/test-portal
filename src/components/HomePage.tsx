@@ -186,14 +186,17 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
                   {selectedCategory} Subjects & Streams
                 </h2>
               </div>
-              <button
-                suppressHydrationWarning
-                onClick={() => handleCategorySelect("All")}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer flex items-center gap-1 text-[11px] font-bold"
-                title="Close filter"
-              >
-                <X className="w-3.5 h-3.5" /> Close Filter
-              </button>
+                <button
+                  suppressHydrationWarning
+                  onClick={() => handleCategorySelect("All")}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100 hover:border-rose-300 transition-all cursor-pointer shadow-2xs active:scale-95"
+                  title="Clear filter and show all tests"
+                >
+                  <span className="w-3.5 h-3.5 rounded-full bg-rose-600 text-white flex items-center justify-center shrink-0">
+                    <X className="w-2.5 h-2.5 stroke-[3]" />
+                  </span>
+                  <span>Clear Filter</span>
+                </button>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
