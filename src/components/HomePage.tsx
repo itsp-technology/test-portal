@@ -13,6 +13,8 @@ import {
   CheckCircle2,
   Sparkles,
   X,
+  Menu,
+  FileText,
 } from "lucide-react";
 
 interface HomePageProps {
@@ -38,6 +40,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
 
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState<boolean>(false);
 
   const handleCategorySelect = (cat: string) => {
     setSelectedCategory(cat);
@@ -92,34 +95,51 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] dark:bg-[#090d16] text-slate-900 dark:text-slate-100 transition-colors duration-150" suppressHydrationWarning>
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-6">
         {/* Top Header */}
-        <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white rounded-3xl px-5 py-4 sm:px-7 sm:py-5 shadow-sm mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border border-slate-800">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-2xl bg-blue-600 flex items-center justify-center font-bold text-white shadow-xs shrink-0">
-              <BookOpen className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-base sm:text-lg font-black tracking-tight leading-tight">
-                  Frees Mock Test Portal v1
-                </h1>
-                <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-emerald-500 text-white rounded-md tracking-wider">
-                  100% Free
-                </span>
+        <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white rounded-3xl p-4 sm:px-7 sm:py-5 shadow-sm mb-4 border border-slate-800 flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              {/* Hamburger button visible only on mobile */}
+              <button
+                type="button"
+                onClick={() => setIsMobileDrawerOpen(true)}
+                className="sm:hidden p-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-white transition cursor-pointer border border-white/10"
+                aria-label="Open Navigation Menu"
+              >
+                <Menu className="w-4 h-4" />
+              </button>
+
+              <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-2xl bg-blue-600 flex items-center justify-center font-bold text-white shadow-xs shrink-0">
+                <BookOpen className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
-              <p className="text-xs text-slate-300">
-                Official pattern computer-based tests, sectionals & chapter drills
-              </p>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <h1 className="text-sm sm:text-lg font-black tracking-tight leading-tight">
+                    Frees Mock Test Portal v2
+                  </h1>
+                  <span className="text-[9px] font-black uppercase px-1.5 py-0.5 bg-emerald-500 text-white rounded-md tracking-wider">
+                    100% Free
+                  </span>
+                </div>
+                <p className="text-[10px] sm:text-xs text-slate-300 line-clamp-1">
+                  Official pattern computer-based tests, sectionals & chapter drills
+                </p>
+              </div>
+            </div>
+
+            {/* Desktop Theme Toggle */}
+            <div className="hidden sm:block">
+              <ThemeToggle />
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 w-full sm:w-auto">
-            {/* Theme Toggle Button */}
-            <ThemeToggle />
-
-            {/* Search Box */}
-            <div className="relative flex-1 sm:w-80">
+          {/* Search + Mobile Theme Bar */}
+          <div className="flex items-center gap-2 w-full">
+            <div className="sm:hidden">
+              <ThemeToggle />
+            </div>
+            <div className="relative flex-1">
               <Search className="w-4 h-4 absolute left-3.5 top-2.5 text-slate-400" />
               <input
                 type="text"
@@ -270,7 +290,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
 
         {/* Mock Test Cards */}
         {paginatedTests.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {paginatedTests.map((test, idx) => (
               <div
                 key={`${test.id}-${idx}`}
@@ -374,6 +394,94 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
           </div>
         )}
       </main>
+
+      {/* Mobile Drawer (Triggered by Hamburger Button) */}
+      {isMobileDrawerOpen && (
+        <div className="sm:hidden fixed inset-0 z-50 flex">
+          <div
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
+            onClick={() => setIsMobileDrawerOpen(false)}
+          />
+
+          <div className="relative w-72 max-w-[80vw] bg-white dark:bg-[#111726] border-r border-slate-200 dark:border-slate-800 p-5 flex flex-col justify-between z-10 shadow-2xl animate-in slide-in-from-left duration-200 select-none">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  <span className="text-sm font-black text-slate-900 dark:text-slate-100">
+                    Exam Categories
+                  </span>
+                </div>
+                <button
+                  onClick={() => setIsMobileDrawerOpen(false)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition"
+                  aria-label="Close Menu"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Theme Selection in Menu */}
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-[#161f33] border border-slate-200 dark:border-slate-800">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Theme Mode
+                </span>
+                <ThemeToggle />
+              </div>
+
+              {/* Categories Navigation */}
+              <div className="space-y-1.5 max-h-[60vh] overflow-y-auto pr-1">
+                <button
+                  onClick={() => {
+                    handleCategorySelect("All");
+                    setIsMobileDrawerOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between p-2.5 rounded-xl text-xs font-bold transition ${
+                    selectedCategory === "All"
+                      ? "bg-blue-600 text-white shadow-xs"
+                      : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>All Test Papers</span>
+                  </span>
+                  <span className="text-[10px] opacity-80">{AVAILABLE_TESTS.length}</span>
+                </button>
+
+                {examCategories.map((cat) => {
+                  const count = AVAILABLE_TESTS.filter((t) => t.category === cat).length;
+                  const isActive = selectedCategory === cat;
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => {
+                        handleCategorySelect(cat);
+                        setIsMobileDrawerOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between p-2.5 rounded-xl text-xs font-bold transition ${
+                        isActive
+                          ? "bg-blue-600 text-white shadow-xs"
+                          : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>{cat}</span>
+                      </span>
+                      <span className="text-[10px] opacity-80">{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="text-[11px] text-slate-400 dark:text-slate-500 border-t border-slate-100 dark:border-slate-800 pt-3 text-center font-medium">
+              Free Mock Test Portal v1
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

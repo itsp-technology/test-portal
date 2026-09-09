@@ -20,6 +20,9 @@ import {
   LayoutGrid,
   Languages,
   Loader2,
+  Menu,
+  X,
+  LogOut,
 } from "lucide-react";
 
 const MermaidRenderer = dynamic(
@@ -83,13 +86,15 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
     type: "exit",
   });
 
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
+  const [isMobilePaletteOpen, setIsMobilePaletteOpen] = useState<boolean>(false);
+
   const [translatedMap, setTranslatedMap] = useState<
     Record<number, { prompt: string; options: { key: string; text: string }[] }>
   >({});
   const [activeQuestionLang, setActiveQuestionLang] = useState<Record<number, "en" | "hi">>({});
   const [translating, setTranslating] = useState<boolean>(false);
 
-  const [isMobilePaletteOpen, setIsMobilePaletteOpen] = useState<boolean>(false);
   const answersRef = useRef({ selectedAnswers, natInputs });
 
   useEffect(() => {
@@ -257,86 +262,99 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
   return (
     <div
       suppressHydrationWarning
-      className="min-h-screen bg-[#f8fafc] dark:bg-[#090d16] text-slate-900 dark:text-slate-100 flex flex-col justify-between pb-16 lg:pb-0 transition-colors duration-200"
+      className="min-h-screen bg-[#f8fafc] dark:bg-[#070b13] text-slate-900 dark:text-slate-100 flex flex-col justify-between pb-16 lg:pb-0 transition-colors duration-150"
     >
       {/* Top Header */}
-      <header className="bg-white dark:bg-[#111726] border-b border-slate-200 dark:border-slate-800 px-4 sm:px-8 py-3 flex items-center justify-between shadow-xs sticky top-0 z-30 select-none">
-        <div className="flex items-center gap-3 truncate pr-2">
+      <header className="bg-white dark:bg-[#0d1424] border-b border-slate-200 dark:border-slate-800/90 px-3 sm:px-8 py-2.5 sm:py-3 flex items-center justify-between shadow-xs sticky top-0 z-30 select-none">
+        <div className="flex items-center gap-2 sm:gap-3 truncate pr-2">
+          <button
+            onClick={() => setIsMobileMenuOpen(true)}
+            className="lg:hidden p-1.5 sm:p-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer shrink-0 border border-slate-200 dark:border-slate-700"
+            aria-label="Open Exam Controls"
+            title="Menu"
+          >
+            <Menu className="w-4 h-4" />
+          </button>
+
           <button
             onClick={() => setModalState({ isOpen: true, type: "exit" })}
-            className="p-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer shrink-0"
+            className="hidden lg:flex p-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer shrink-0"
             title="Exit Exam"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
+
           <div className="truncate">
-            <h2 className="font-extrabold text-slate-900 dark:text-slate-100 text-sm sm:text-base tracking-tight leading-tight truncate">
+            <h2 className="font-extrabold text-slate-900 dark:text-slate-100 text-xs sm:text-base tracking-tight leading-tight truncate">
               {exam.title}
             </h2>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold truncate">
-              Question {currentIndex + 1} of {questions.length} • Max Marks: {exam.maxMarks}
+            <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-semibold truncate">
+              Q {currentIndex + 1}/{questions.length} • Max Marks: {exam.maxMarks}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
-          {/* Mid-Exam White/Dark Theme Toggle */}
-          <ThemeToggle variant="portal" />
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+          <div className="hidden sm:block">
+            <ThemeToggle variant="portal" />
+          </div>
 
           <ExamTimer
             storageKey={storageKey}
             initialMinutes={exam.durationMins}
             onTimeUp={handleConfirmSubmit}
           />
+
           <button
             onClick={() => setModalState({ isOpen: true, type: "submit" })}
-            className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-black px-3.5 sm:px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-md shadow-emerald-600/20 cursor-pointer"
+            className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-black px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl transition flex items-center gap-1.5 shadow-md shadow-emerald-600/20 cursor-pointer shrink-0"
+            title="Submit Exam"
           >
             <Send className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Submit Test</span>
+            <span>Submit</span>
           </button>
         </div>
       </header>
 
-      {/* Main Question + Palette View */}
-      <div className="flex-1 flex flex-col lg:flex-row max-w-7xl w-full mx-auto p-4 sm:p-6 gap-6">
-        <section className="flex-1 bg-white dark:bg-[#111726] rounded-3xl border border-slate-200/90 dark:border-slate-800/90 p-5 sm:p-8 shadow-xs flex flex-col justify-between">
+      {/* Main View Area */}
+      <div className="flex-1 flex flex-col lg:flex-row max-w-7xl w-full mx-auto p-3 sm:p-6 gap-4 sm:gap-6">
+        <section className="flex-1 bg-white dark:bg-[#0e1628] rounded-2xl sm:rounded-3xl border border-slate-200/90 dark:border-slate-800 p-4 sm:p-8 shadow-xs flex flex-col justify-between">
           <div>
             {/* Question Header Bar */}
-            <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3.5 mb-5 gap-2 select-none">
+            <div className="flex flex-wrap items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-3 mb-4 sm:mb-5 gap-2 select-none">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-black uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                <span className="text-xs sm:text-sm font-black uppercase tracking-wider text-blue-600 dark:text-blue-400">
                   Question {currentIndex + 1}
                 </span>
 
                 {currentQ?.type === "MCQ" && (
-                  <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                    MCQ (Single Choice)
+                  <span className="text-[10px] sm:text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                    MCQ (Single)
                   </span>
                 )}
                 {currentQ?.type === "MSQ" && (
-                  <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
-                    MSQ (Multiple Choice)
+                  <span className="text-[10px] sm:text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                    MSQ (Multiple)
                   </span>
                 )}
                 {currentQ?.type === "NAT" && (
-                  <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                    NAT (Numerical Value)
+                  <span className="text-[10px] sm:text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                    NAT (Numeric)
                   </span>
                 )}
               </div>
 
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={handleToggleCurrentQuestionLang}
                   disabled={translating}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold border transition cursor-pointer active:scale-95 ${
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold border transition cursor-pointer active:scale-95 ${
                     isCurrentInHindi
                       ? "bg-blue-600 border-blue-600 text-white shadow-xs"
-                      : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+                      : "bg-slate-50 dark:bg-[#162035] border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#1c2944]"
                   }`}
-                  title="Translate this question"
+                  title="Translate question"
                 >
                   {translating ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
@@ -346,21 +364,21 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
                   <span>{isCurrentInHindi ? "English" : "हिंदी"}</span>
                 </button>
 
-                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg">
-                  +2 Marks • Negative {currentQ?.type === "MCQ" ? "-0.66" : "0"}
+                <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-[#162035] px-2.5 py-1 rounded-lg">
+                  +2 • {currentQ?.type === "MCQ" ? "-0.66" : "0"}
                 </span>
               </div>
             </div>
 
-            {/* MSQ Explanatory Alert */}
+            {/* MSQ Notice Banner */}
             {currentQ?.type === "MSQ" && (
-              <div className="mb-5 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/80 rounded-2xl p-3 text-xs text-purple-900 dark:text-purple-300 font-semibold flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-purple-600 shrink-0" />
-                <span>One or more options can be correct. Click multiple checkboxes to select all valid choices.</span>
+              <div className="mb-4 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/80 rounded-xl p-3 text-xs text-purple-900 dark:text-purple-300 font-semibold flex items-center gap-2.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-purple-500 shrink-0 shadow-xs" />
+                <span>One or more options can be correct. Click checkboxes to select all valid choices.</span>
               </div>
             )}
 
-            {/* Question Text */}
+            {/* Question Prompt */}
             <div className="text-sm sm:text-base leading-relaxed text-slate-900 dark:text-slate-100 space-y-3 font-normal">
               {currentDisplayPrompt && <MathText content={currentDisplayPrompt} />}
             </div>
@@ -371,7 +389,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
               </div>
             )}
 
-            {/* Options List */}
+            {/* High-Contrast Options List */}
             <div className="mt-6 space-y-3">
               {currentQ && (currentQ.type === "MCQ" || currentQ.type === "MSQ" || currentDisplayOptions.length > 0) ? (
                 currentDisplayOptions.length > 0 ? (
@@ -383,21 +401,22 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
                       <button
                         key={opt.key}
                         onClick={() => handleOptionSelect(opt.key)}
-                        className={`w-full text-left p-4 rounded-2xl border transition-all flex items-start sm:items-center gap-3.5 sm:gap-4 text-xs sm:text-sm cursor-pointer ${
+                        className={`w-full text-left p-4 rounded-2xl border transition-all flex items-start sm:items-center gap-3.5 sm:gap-4 text-xs sm:text-sm cursor-pointer outline-none focus:outline-none ${
                           isChecked
                             ? isMSQ
-                              ? "border-purple-600 bg-purple-50/70 dark:bg-purple-950/40 text-purple-950 dark:text-purple-200 font-bold shadow-xs ring-1 ring-purple-600/30"
-                              : "border-blue-600 bg-blue-50/70 dark:bg-blue-950/40 text-blue-950 dark:text-blue-200 font-bold shadow-xs ring-1 ring-blue-600/30"
-                            : "border-slate-200 dark:border-slate-800 bg-white dark:bg-[#151c2e] hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50/60 dark:hover:bg-slate-800/40 text-slate-800 dark:text-slate-200"
+                              ? "border-purple-500 dark:border-purple-500 bg-purple-50/80 dark:bg-purple-950/60 text-purple-950 dark:text-purple-100 font-semibold shadow-xs ring-2 ring-purple-500/40"
+                              : "border-blue-500 dark:border-blue-500 bg-blue-50/80 dark:bg-blue-950/60 text-blue-950 dark:text-blue-100 font-semibold shadow-xs ring-2 ring-blue-500/40"
+                            : "border-slate-200 dark:border-slate-700/80 bg-slate-50/70 dark:bg-[#162035] hover:border-slate-300 dark:hover:border-slate-500 hover:bg-slate-100/90 dark:hover:bg-[#1e2c48] text-slate-800 dark:text-slate-200"
                         }`}
                       >
+                        {/* Selector Indicator (Radio / Checkbox) */}
                         <div className="pt-0.5 sm:pt-0 shrink-0 select-none">
                           {isMSQ ? (
                             <div
-                              className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all ${
+                              className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${
                                 isChecked
                                   ? "bg-purple-600 border-purple-600 text-white"
-                                  : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:border-slate-400"
+                                  : "border-slate-300 dark:border-slate-500 bg-white dark:bg-[#0e1628]"
                               }`}
                             >
                               {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
@@ -407,7 +426,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
                               className={`w-5 h-5 rounded-full border flex items-center justify-center transition-all ${
                                 isChecked
                                   ? "border-blue-600 bg-blue-600 text-white"
-                                  : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:border-slate-400"
+                                  : "border-slate-300 dark:border-slate-500 bg-white dark:bg-[#0e1628]"
                               }`}
                             >
                               {isChecked && <div className="w-2 h-2 rounded-full bg-white" />}
@@ -415,19 +434,21 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
                           )}
                         </div>
 
+                        {/* Letter Badge (A, B, C, D) */}
                         <div
-                          className={`w-7 h-7 rounded-xl flex items-center justify-center font-black text-xs shrink-0 select-none ${
+                          className={`w-7 h-7 rounded-xl flex items-center justify-center font-black text-xs shrink-0 select-none transition-all ${
                             isChecked
                               ? isMSQ
-                                ? "bg-purple-600 text-white"
-                                : "bg-blue-600 text-white"
-                              : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold"
+                                ? "bg-purple-600 text-white shadow-xs"
+                                : "bg-blue-600 text-white shadow-xs"
+                              : "bg-slate-200/80 dark:bg-slate-700/80 text-slate-700 dark:text-slate-200"
                           }`}
                         >
                           {opt.key}
                         </div>
 
-                        <div className="flex-1 leading-relaxed pt-0.5">
+                        {/* Option Text & Formula */}
+                        <div className="flex-1 leading-relaxed pt-0.5 font-medium">
                           <MathText content={opt.text} />
                         </div>
                       </button>
@@ -439,8 +460,8 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
                   </div>
                 )
               ) : (
-                /* High-Contrast NAT Input Field */
-                <div className="p-5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-2xl">
+                /* NAT Input Container */
+                <div className="p-5 bg-slate-50 dark:bg-[#162035] border border-slate-200 dark:border-slate-700 rounded-2xl">
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2.5 select-none">
                     Enter Numerical Value (NAT):
                   </label>
@@ -449,14 +470,14 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
                     value={natInputs[currentQ?.id || 0] || ""}
                     onChange={(e) => handleNatChange(e.target.value)}
                     placeholder="Type numerical answer..."
-                    className="w-full max-w-xs px-4 py-2.5 bg-white dark:bg-[#151c2e] border border-slate-300 dark:border-slate-700 rounded-xl text-base font-bold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 shadow-xs"
+                    className="w-full max-w-xs px-4 py-2.5 bg-white dark:bg-[#0e1628] border border-slate-300 dark:border-slate-600 rounded-xl text-base font-bold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs"
                   />
                 </div>
               )}
             </div>
           </div>
 
-          {/* Desktop Nav Controls */}
+          {/* Desktop Footer Controls */}
           <div className="hidden lg:flex flex-wrap items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-5 mt-6 gap-2 select-none">
             <div className="flex items-center gap-2">
               <button
@@ -470,8 +491,8 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
                 }}
                 className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                   currentQ && markedForReview[currentQ.id]
-                    ? "bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-700"
-                    : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+                    ? "bg-purple-100 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-700"
+                    : "bg-slate-100 dark:bg-[#162035] text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-[#1e2c48]"
                 }`}
               >
                 <Bookmark className="w-3.5 h-3.5" />
@@ -479,7 +500,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
               </button>
               <button
                 onClick={handleClearCurrent}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-[#162035] text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-[#1e2c48] transition cursor-pointer"
               >
                 Clear Response
               </button>
@@ -489,7 +510,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
               <button
                 onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
                 disabled={currentIndex === 0}
-                className="p-2 border border-slate-200 dark:border-slate-800 rounded-xl disabled:opacity-30 hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
+                className="p-2 border border-slate-200 dark:border-slate-700 rounded-xl disabled:opacity-30 hover:bg-slate-50 dark:hover:bg-[#162035] transition cursor-pointer text-slate-700 dark:text-slate-300"
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
@@ -510,7 +531,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
           </div>
         </section>
 
-        {/* Question Palette Sidebar */}
+        {/* Desktop Palette */}
         <QuestionPalette
           questions={questions}
           currentIndex={currentIndex}
@@ -523,12 +544,12 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
         />
       </div>
 
-      {/* Mobile Touch Navigation */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-[#111726]/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 p-2.5 px-3 flex items-center justify-between gap-1.5 shadow-lg z-40 select-none">
+      {/* Mobile Bottom Navigation */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-[#0d1424]/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 p-2.5 px-3 flex items-center justify-between gap-1.5 shadow-lg z-40 select-none">
         <button
           onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
           disabled={currentIndex === 0}
-          className="p-2 border border-slate-200 dark:border-slate-800 rounded-xl disabled:opacity-30 hover:bg-slate-50 dark:hover:bg-slate-800 active:scale-95 transition"
+          className="p-2 border border-slate-200 dark:border-slate-700 rounded-xl disabled:opacity-30 hover:bg-slate-50 dark:hover:bg-slate-800 active:scale-95 transition"
         >
           <ChevronLeft className="w-4 h-4 text-slate-700 dark:text-slate-300" />
         </button>
@@ -552,8 +573,8 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
           }}
           className={`p-2 rounded-xl border transition ${
             currentQ && markedForReview[currentQ.id]
-              ? "bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-700"
-              : "border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+              ? "bg-purple-100 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-700"
+              : "border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
           }`}
           title="Mark for Review"
         >
@@ -562,7 +583,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
 
         <button
           onClick={() => setIsMobilePaletteOpen(true)}
-          className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-bold active:scale-95 transition"
+          className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#162035] text-slate-800 dark:text-slate-200 text-xs font-bold active:scale-95 transition"
         >
           <LayoutGrid className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
           <span>
@@ -586,7 +607,77 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
         </button>
       </div>
 
-      {/* Polite Custom Dialog */}
+      {/* Slide-out Hamburger Drawer */}
+      {isMobileMenuOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 flex">
+          <div
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+
+          <div className="relative w-72 max-w-[80vw] bg-white dark:bg-[#0e1628] border-r border-slate-200 dark:border-slate-800 p-5 flex flex-col justify-between z-10 shadow-2xl animate-in slide-in-from-left duration-200 select-none">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 dark:text-slate-100">
+                    Exam Controls
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-semibold truncate max-w-[170px]">
+                    {exam.title}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                  aria-label="Close Menu"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-[#162035] border border-slate-200 dark:border-slate-700">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Theme Mode
+                  </span>
+                  <ThemeToggle variant="portal" />
+                </div>
+
+                <button
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    setIsMobilePaletteOpen(true);
+                  }}
+                  className="w-full flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-[#162035] border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <LayoutGrid className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    <span>Question Palette</span>
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 font-bold">
+                    {answeredQuestionsCount}/{questions.length}
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+              <button
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  setModalState({ isOpen: true, type: "exit" });
+                }}
+                className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 font-bold text-xs hover:bg-rose-100 transition cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Exit Exam</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
       <ConfirmModal
         isOpen={modalState.isOpen}
         type={modalState.type}

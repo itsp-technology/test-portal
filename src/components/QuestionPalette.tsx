@@ -57,14 +57,14 @@ export const QuestionPalette = memo(function QuestionPalette({
           const isCurrent = currentIndex === idx;
 
           let badgeStyle =
-            "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border-transparent";
+            "bg-slate-100 dark:bg-[#161f33] text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#1f2c47] border-transparent";
           if (isMarked) {
             badgeStyle = "bg-purple-600 text-white shadow-xs border-purple-600";
           } else if (isAnswered) {
             badgeStyle = "bg-emerald-600 text-white shadow-xs border-emerald-600";
           } else if (visited[idx]) {
             badgeStyle =
-              "bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-800";
+              "bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60";
           }
 
           return (
@@ -76,7 +76,7 @@ export const QuestionPalette = memo(function QuestionPalette({
               }}
               className={`h-10 w-full rounded-xl font-bold text-xs flex items-center justify-center transition-all cursor-pointer border ${badgeStyle} ${
                 isCurrent
-                  ? "ring-2 ring-blue-600 ring-offset-2 dark:ring-offset-slate-900 !bg-white dark:!bg-slate-900 !text-blue-600 dark:!text-blue-400 !border-blue-600 font-black shadow-xs scale-105"
+                  ? "ring-2 ring-blue-600 ring-offset-2 ring-offset-white dark:ring-offset-[#111726] !bg-white dark:!bg-[#151c2e] !text-blue-600 dark:!text-blue-400 !border-blue-600 font-black shadow-xs scale-105"
                   : "active:scale-95"
               }`}
             >
