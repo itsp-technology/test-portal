@@ -6,7 +6,7 @@ import Script from "next/script";
 export const metadata: Metadata = {
   title: "Free Mock Test Portal - Computer Based Test Series",
   description: "Official pattern computer-based tests, sectionals & chapter drills",
-  manifest: "/manifest.webmanifest",
+  manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -30,7 +30,6 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Anti-flash script: ensures dark mode applies before first DOM paint */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -50,14 +49,12 @@ export default function RootLayout({
       <body className="bg-[#f8fafc] dark:bg-[#090d16] text-slate-900 dark:text-slate-100 antialiased min-h-screen transition-colors duration-150">
         {children}
 
-        {/* Service Worker Registration for PWA */}
+        {/* Service Worker Registration */}
         <Script id="sw-register" strategy="afterInteractive">
           {`
             if ('serviceWorker' in navigator) {
               window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js').catch((err) => {
-                  console.error('Service Worker registration failed:', err);
-                });
+                navigator.serviceWorker.register('/sw.js').catch(() => {});
               });
             }
           `}
