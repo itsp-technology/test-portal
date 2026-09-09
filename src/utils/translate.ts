@@ -1,6 +1,6 @@
 // Persistent in-memory + local storage translation cache
 const MEMORY_CACHE = new Map<string, string>();
-const STORAGE_PREFIX = "cbt_trans_clean_v5_";
+const STORAGE_PREFIX = "cbt_trans_clean_v6_";
 
 function hashKey(str: string): string {
   let hash = 5381;
@@ -25,18 +25,24 @@ function hasTranslatableText(text: string): boolean {
   return /[a-zA-Z]{2,}/.test(text);
 }
 
-// 1. JSONP Request Helper (Bypasses CORS completely in both web and Android WebViews)
-function fetchJsonp(url: string, timeoutMs = 3500): Promise<any> {
+interface MyMemoryResponse {
+  responseData?: {
+    translatedText?: string;
+  };
+}
+
+// 1. JSONP Helper with strict TypeScript types (bypasses CORS in Web & Android APK)
+function fetchJsonp(url: string, timeoutMs = 3500): Promise<MyMemoryResponse | null> {
   return new Promise((resolve, reject) => {
     if (typeof window === "undefined") return resolve(null);
 
     const callbackName = `jsonp_trans_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
     const script = document.createElement("script");
-    let timer: NodeJS.Timeout | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
 
     const cleanup = () => {
       if (timer) clearTimeout(timer);
-      delete (window as any)[callbackName];
+      Reflect.deleteProperty(window as unknown as Record<string, unknown>, callbackName);
       if (script.parentNode) script.parentNode.removeChild(script);
     };
 
@@ -45,7 +51,7 @@ function fetchJsonp(url: string, timeoutMs = 3500): Promise<any> {
       reject(new Error("JSONP Timeout"));
     }, timeoutMs);
 
-    (window as any)[callbackName] = (data: any) => {
+    (window as unknown as Record<string, unknown>)[callbackName] = (data: MyMemoryResponse) => {
       cleanup();
       resolve(data);
     };
@@ -60,7 +66,7 @@ function fetchJsonp(url: string, timeoutMs = 3500): Promise<any> {
   });
 }
 
-// 2. Multi-Provider Translator (Zero CORS errors)
+// 2. Client-side Safe Translator (No server route required)
 async function translatePlainPhrase(text: string): Promise<string> {
   const trimmed = text.trim();
   if (!trimmed || !hasTranslatableText(trimmed)) return text;
@@ -73,22 +79,22 @@ async function translatePlainPhrase(text: string): Promise<string> {
     return leadingSpace + MEMORY_CACHE.get(key)! + trailingSpace;
   }
 
-  // Provider 1: Google Translate Single GTX Gateway (Native CORS-Friendly Fetch)
+  // Provider 1: Google Translate GTX Single Gateway
   try {
     const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=hi&dt=t&q=${encodeURIComponent(
       trimmed
     )}`;
-    
+
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2800);
+    const timeout = setTimeout(() => controller.abort(), 2600);
     const res = await fetch(url, { signal: controller.signal });
     clearTimeout(timeout);
 
     if (res.ok) {
-      const data = await res.json();
+      const data = (await res.json()) as unknown;
       if (Array.isArray(data) && Array.isArray(data[0])) {
         const translated = data[0]
-          .map((item: unknown[]) => (Array.isArray(item) ? item[0] : ""))
+          .map((item: unknown[]) => (Array.isArray(item) ? String(item[0] || "") : ""))
           .join("");
         if (translated && translated.trim()) {
           MEMORY_CACHE.set(key, translated);
@@ -98,7 +104,7 @@ async function translatePlainPhrase(text: string): Promise<string> {
     }
   } catch {}
 
-  // Provider 2: MyMemory JSONP Protocol (Completely immune to CORS & 403 blocks)
+  // Provider 2: MyMemory JSONP Protocol (Works with zero CORS issues in APK WebViews)
   try {
     const jsonpUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(
       trimmed
@@ -124,7 +130,7 @@ async function translatePlainPhrase(text: string): Promise<string> {
     clearTimeout(timeout);
 
     if (res.ok) {
-      const data = await res.json();
+      const data = (await res.json()) as MyMemoryResponse;
       if (data?.responseData?.translatedText) {
         const translated = data.responseData.translatedText;
         MEMORY_CACHE.set(key, translated);
@@ -136,23 +142,20 @@ async function translatePlainPhrase(text: string): Promise<string> {
   return text;
 }
 
-// 3. Segment Splicer: Protects Math ($...$) completely, only translates English
+// 3. Segment Splicer: Preserves Math ($...$ and $$...$$) intact
 export async function translateTextToHindi(rawText: string): Promise<string> {
   if (!rawText || !rawText.trim()) return rawText;
 
-  // If pure formula, return immediately with zero delay
   if (isMathBlock(rawText) || !hasTranslatableText(rawText)) {
     return rawText;
   }
 
   const overallKey = hashKey(rawText);
 
-  // Check In-Memory Cache
   if (MEMORY_CACHE.has(overallKey)) {
     return MEMORY_CACHE.get(overallKey)!;
   }
 
-  // Check LocalStorage Cache
   if (typeof window !== "undefined") {
     try {
       const disk = localStorage.getItem(`${STORAGE_PREFIX}${overallKey}`);
@@ -163,16 +166,14 @@ export async function translateTextToHindi(rawText: string): Promise<string> {
     } catch {}
   }
 
-  // Split by KaTeX delimiters ($$...$$ or $...$) while retaining delimiters
+  // Split by KaTeX delimiters ($$...$$ or $...$) while keeping delimiters in the segments
   const segments = rawText.split(/(\$\$[\s\S]*?\$\$|\$[^\$]+?\$)/g);
 
-  // Translate only plain English fragments concurrently
   const translatedSegments = await Promise.all(
     segments.map(async (seg) => {
       if (!seg) return "";
-      // Untouched Math blocks
       if (isMathBlock(seg)) {
-        return seg;
+        return seg; // Math remains untouched
       }
       return await translatePlainPhrase(seg);
     })
@@ -180,7 +181,6 @@ export async function translateTextToHindi(rawText: string): Promise<string> {
 
   const finalResult = translatedSegments.join("");
 
-  // Store in cache
   MEMORY_CACHE.set(overallKey, finalResult);
   if (typeof window !== "undefined") {
     try {
