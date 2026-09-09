@@ -25,8 +25,14 @@ export const QuestionPalette = memo(function QuestionPalette({
   isOpenMobile = false,
   onCloseMobile,
 }: QuestionPaletteProps) {
-  const answeredCount = Object.values(selectedAnswers).filter((a) => a && a.length > 0).length;
-  const markedCount = Object.values(markedForReview).filter(Boolean).length;
+  let answeredCount = 0;
+  let markedCount = 0;
+
+  for (let i = 0; i < questions.length; i++) {
+    const qId = questions[i].id;
+    if (selectedAnswers[qId] && selectedAnswers[qId].length > 0) answeredCount++;
+    if (markedForReview[qId]) markedCount++;
+  }
 
   const content = (
     <div className="flex flex-col h-full space-y-4">
@@ -50,14 +56,15 @@ export const QuestionPalette = memo(function QuestionPalette({
         )}
       </div>
 
-      <div className="grid grid-cols-5 sm:grid-cols-6 lg:grid-cols-5 gap-2 max-h-[50vh] lg:max-h-[360px] overflow-y-auto pr-1 scrollbar-none">
+      <div className="grid grid-cols-5 sm:grid-cols-6 lg:grid-cols-5 gap-2 max-h-[50vh] lg:max-h-[360px] overflow-y-auto pr-1 scrollbar-none content-start">
         {questions.map((q, idx) => {
           const isAnswered = (selectedAnswers[q.id] || []).length > 0;
-          const isMarked = markedForReview[q.id];
+          const isMarked = !!markedForReview[q.id];
           const isCurrent = currentIndex === idx;
 
           let badgeStyle =
-            "bg-slate-100 dark:bg-[#161f33] text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#1f2c47] border-transparent";
+            "bg-slate-100 dark:bg-[#162035] text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#1f2c47] border-transparent";
+
           if (isMarked) {
             badgeStyle = "bg-purple-600 text-white shadow-xs border-purple-600";
           } else if (isAnswered) {
@@ -74,10 +81,10 @@ export const QuestionPalette = memo(function QuestionPalette({
                 onSelect(idx);
                 if (onCloseMobile) onCloseMobile();
               }}
-              className={`h-10 w-full rounded-xl font-bold text-xs flex items-center justify-center transition-all cursor-pointer border ${badgeStyle} ${
+              className={`h-10 w-full rounded-xl font-bold text-xs flex items-center justify-center transition-transform active:scale-95 cursor-pointer border ${badgeStyle} ${
                 isCurrent
-                  ? "ring-2 ring-blue-600 ring-offset-2 ring-offset-white dark:ring-offset-[#111726] !bg-white dark:!bg-[#151c2e] !text-blue-600 dark:!text-blue-400 !border-blue-600 font-black shadow-xs scale-105"
-                  : "active:scale-95"
+                  ? "ring-2 ring-blue-600 ring-offset-2 ring-offset-white dark:ring-offset-[#0e1628] !bg-white dark:!bg-[#162035] !text-blue-600 dark:!text-blue-400 !border-blue-600 font-black shadow-xs scale-105"
+                  : ""
               }`}
             >
               {idx + 1}
@@ -109,7 +116,7 @@ export const QuestionPalette = memo(function QuestionPalette({
 
   return (
     <>
-      <aside className="hidden lg:block w-80 bg-white dark:bg-[#111726] rounded-3xl border border-slate-200/90 dark:border-slate-800/90 p-5 shadow-xs h-fit select-none shrink-0 sticky top-20">
+      <aside className="hidden lg:block w-80 bg-white dark:bg-[#0e1628] rounded-3xl border border-slate-200/90 dark:border-slate-800 p-5 shadow-xs h-fit select-none shrink-0 sticky top-20">
         {content}
       </aside>
 
@@ -119,7 +126,7 @@ export const QuestionPalette = memo(function QuestionPalette({
             className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
             onClick={onCloseMobile}
           />
-          <div className="relative bg-white dark:bg-[#111726] rounded-t-3xl border-t border-slate-200 dark:border-slate-800 p-5 shadow-2xl z-10 max-h-[85vh] animate-in slide-in-from-bottom duration-200">
+          <div className="relative bg-white dark:bg-[#0e1628] rounded-t-3xl border-t border-slate-200 dark:border-slate-800 p-5 shadow-2xl z-10 max-h-[85vh] animate-in slide-in-from-bottom duration-150">
             <div className="w-12 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto mb-3" />
             {content}
           </div>

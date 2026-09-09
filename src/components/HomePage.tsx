@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useDeferredValue } from "react";
 import { AVAILABLE_TESTS, CATEGORY_TAXONOMY } from "../data/exams";
 import { ExamItem } from "../types/exam";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -39,6 +39,9 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
   });
 
   const [searchQuery, setSearchQuery] = useState<string>("");
+  // Non-blocking concurrent search input
+  const deferredSearch = useDeferredValue(searchQuery);
+
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState<boolean>(false);
 
@@ -46,44 +49,48 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
     setSelectedCategory(cat);
     setSelectedSubCategory("All");
     setCurrentPage(1);
-    if (typeof window !== "undefined") {
+    try {
       sessionStorage.setItem("portal_selected_cat", cat);
       sessionStorage.setItem("portal_selected_subcat", "All");
-    }
+    } catch {}
   };
 
   const handleSubCategorySelect = (sub: string) => {
     setSelectedSubCategory(sub);
     setCurrentPage(1);
-    if (typeof window !== "undefined") {
+    try {
       sessionStorage.setItem("portal_selected_subcat", sub);
-    }
+    } catch {}
   };
 
-  const examCategories = Object.keys(CATEGORY_TAXONOMY);
+  const examCategories = useMemo(() => Object.keys(CATEGORY_TAXONOMY), []);
   const currentSubCategories = CATEGORY_TAXONOMY[selectedCategory] || [];
 
+  // Instant pre-indexed filtering
   const filteredTests = useMemo(() => {
+    const query = deferredSearch.toLowerCase().trim();
+
     return AVAILABLE_TESTS.filter((test) => {
-      const matchCategory =
-        selectedCategory === "All" || test.category === selectedCategory;
+      if (selectedCategory !== "All" && test.category !== selectedCategory) return false;
 
-      const matchSubCategory =
-        selectedSubCategory === "All" ||
-        test.subCategory === selectedSubCategory ||
-        test.subject === selectedSubCategory;
+      if (
+        selectedSubCategory !== "All" &&
+        test.subCategory !== selectedSubCategory &&
+        test.subject !== selectedSubCategory
+      ) {
+        return false;
+      }
 
-      const query = searchQuery.toLowerCase().trim();
-      const matchSearch =
-        !query ||
+      if (!query) return true;
+
+      return (
         test.title.toLowerCase().includes(query) ||
         test.subject.toLowerCase().includes(query) ||
         (test.chapter && test.chapter.toLowerCase().includes(query)) ||
-        (test.subCategory && test.subCategory.toLowerCase().includes(query));
-
-      return matchCategory && matchSubCategory && matchSearch;
+        (test.subCategory && test.subCategory.toLowerCase().includes(query))
+      );
     });
-  }, [selectedCategory, selectedSubCategory, searchQuery]);
+  }, [selectedCategory, selectedSubCategory, deferredSearch]);
 
   const totalPages = Math.ceil(filteredTests.length / ITEMS_PER_PAGE) || 1;
   const paginatedTests = useMemo(() => {
@@ -94,13 +101,12 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
   const isSubjectBoxVisible = selectedCategory !== "All" && currentSubCategories.length > 0;
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] dark:bg-[#090d16] text-slate-900 dark:text-slate-100 transition-colors duration-150" suppressHydrationWarning>
+    <div className="min-h-screen bg-[#f8fafc] dark:bg-[#070b13] text-slate-900 dark:text-slate-100 transition-colors duration-100" suppressHydrationWarning>
       <main className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-6">
         {/* Top Header */}
         <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white rounded-3xl p-4 sm:px-7 sm:py-5 shadow-sm mb-4 border border-slate-800 flex flex-col gap-3">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5">
-              {/* Hamburger button visible only on mobile */}
               <button
                 type="button"
                 onClick={() => setIsMobileDrawerOpen(true)}
@@ -116,7 +122,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
               <div>
                 <div className="flex items-center gap-1.5">
                   <h1 className="text-sm sm:text-lg font-black tracking-tight leading-tight">
-                    Frees Mock Test Portal v2
+                    Free Mock Test Portal v2
                   </h1>
                   <span className="text-[9px] font-black uppercase px-1.5 py-0.5 bg-emerald-500 text-white rounded-md tracking-wider">
                     100% Free
@@ -128,13 +134,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
               </div>
             </div>
 
-            {/* Desktop Theme Toggle */}
             <div className="hidden sm:block">
               <ThemeToggle />
             </div>
           </div>
 
-          {/* Search + Mobile Theme Bar */}
           <div className="flex items-center gap-2 w-full">
             <div className="sm:hidden">
               <ThemeToggle />
@@ -163,7 +167,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
             className={`px-4 py-2 rounded-2xl text-xs font-black transition flex items-center gap-2 whitespace-nowrap cursor-pointer shrink-0 ${
               selectedCategory === "All"
                 ? "bg-blue-600 text-white shadow-xs"
-                : "bg-white dark:bg-[#111726] text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800"
+                : "bg-white dark:bg-[#0e1628] text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#162035] border border-slate-200 dark:border-slate-800"
             }`}
           >
             <Sparkles className="w-3.5 h-3.5" />
@@ -190,7 +194,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
                 className={`px-4 py-2 rounded-2xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer shrink-0 ${
                   isActive
                     ? "bg-slate-900 dark:bg-blue-600 text-white shadow-xs"
-                    : "bg-white dark:bg-[#111726] text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800"
+                    : "bg-white dark:bg-[#0e1628] text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#162035] border border-slate-200 dark:border-slate-800"
                 }`}
               >
                 <span>{cat}</span>
@@ -210,9 +214,9 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
           })}
         </div>
 
-        {/* Sub-Category/Stream Drawer */}
+        {/* Subcategory Drawer */}
         {isSubjectBoxVisible && (
-          <div className="bg-white dark:bg-[#111726] border border-blue-200 dark:border-slate-800 rounded-3xl p-4 sm:p-6 shadow-xs mb-5 animate-in fade-in slide-in-from-top-2 duration-150">
+          <div className="bg-white dark:bg-[#0e1628] border border-blue-200 dark:border-slate-800 rounded-3xl p-4 sm:p-6 shadow-xs mb-5 animate-in fade-in slide-in-from-top-2 duration-150">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3 mb-3.5">
               <div className="flex items-center gap-2">
                 <LayoutGrid className="w-4 h-4 text-blue-600 dark:text-blue-400" />
@@ -240,7 +244,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
                 className={`px-3 py-2.5 rounded-2xl text-xs font-semibold text-left transition border cursor-pointer flex items-center justify-between ${
                   selectedSubCategory === "All"
                     ? "border-blue-600 bg-blue-50/70 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-bold"
-                    : "border-slate-200 dark:border-slate-800 bg-white dark:bg-[#161f33] text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                    : "border-slate-200 dark:border-slate-800 bg-white dark:bg-[#162035] text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#1c2944]"
                 }`}
               >
                 <span className="truncate">All {selectedCategory}</span>
@@ -259,7 +263,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
                     className={`px-3 py-2.5 rounded-2xl text-xs font-semibold text-left transition border cursor-pointer flex items-center justify-between ${
                       isSelected
                         ? "border-blue-600 bg-blue-50/70 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-bold"
-                        : "border-slate-200 dark:border-slate-800 bg-white dark:bg-[#161f33] text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                        : "border-slate-200 dark:border-slate-800 bg-white dark:bg-[#162035] text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#1c2944]"
                     }`}
                   >
                     <span className="truncate">{sub}</span>
@@ -294,7 +298,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
             {paginatedTests.map((test, idx) => (
               <div
                 key={`${test.id}-${idx}`}
-                className="bg-white dark:bg-[#111726] border border-slate-200 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xs hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md transition-all flex flex-col justify-between"
+                className="bg-white dark:bg-[#0e1628] border border-slate-200 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xs hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md transition-all flex flex-col justify-between"
               >
                 <div>
                   <div className="flex items-center justify-between mb-2">
@@ -320,7 +324,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-3 gap-1 mt-3.5 py-2 bg-slate-50 dark:bg-[#161f33] border border-slate-100 dark:border-slate-800 rounded-xl text-center">
+                  <div className="grid grid-cols-3 gap-1 mt-3.5 py-2 bg-slate-50 dark:bg-[#162035] border border-slate-100 dark:border-slate-800 rounded-xl text-center">
                     <div>
                       <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase">Questions</p>
                       <p className="text-xs font-black text-slate-800 dark:text-slate-200">{test.totalQuestions}</p>
@@ -339,6 +343,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
                 <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
                   <button
                     suppressHydrationWarning
+                    type="button"
                     onClick={() => onSelectExam(test)}
                     className="w-full bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs"
                   >
@@ -349,7 +354,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
             ))}
           </div>
         ) : (
-          <div className="bg-white dark:bg-[#111726] border border-slate-200 dark:border-slate-800 rounded-3xl p-12 text-center text-slate-400 dark:text-slate-500 text-xs">
+          <div className="bg-white dark:bg-[#0e1628] border border-slate-200 dark:border-slate-800 rounded-3xl p-12 text-center text-slate-400 dark:text-slate-500 text-xs">
             No mock test papers found for this selection. Try selecting another stream or clearing the search.
           </div>
         )}
@@ -359,9 +364,10 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
           <div className="flex items-center justify-center gap-1.5 mt-6 mb-2">
             <button
               suppressHydrationWarning
+              type="button"
               onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
               disabled={currentPage === 1}
-              className="p-2 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-[#111726] text-slate-700 dark:text-slate-300 disabled:opacity-30 hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
+              className="p-2 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-[#0e1628] text-slate-700 dark:text-slate-300 disabled:opacity-30 hover:bg-slate-50 dark:hover:bg-[#162035] transition cursor-pointer"
               aria-label="Previous Page"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -371,11 +377,12 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
               <button
                 suppressHydrationWarning
                 key={page}
+                type="button"
                 onClick={() => setCurrentPage(page)}
                 className={`h-8 w-8 rounded-xl text-xs font-bold transition cursor-pointer ${
                   currentPage === page
                     ? "bg-blue-600 text-white shadow-xs"
-                    : "bg-white dark:bg-[#111726] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800"
+                    : "bg-white dark:bg-[#0e1628] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-[#162035]"
                 }`}
               >
                 {page}
@@ -384,9 +391,10 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
 
             <button
               suppressHydrationWarning
+              type="button"
               onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
               disabled={currentPage === totalPages}
-              className="p-2 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-[#111726] text-slate-700 dark:text-slate-300 disabled:opacity-30 hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
+              className="p-2 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-[#0e1628] text-slate-700 dark:text-slate-300 disabled:opacity-30 hover:bg-slate-50 dark:hover:bg-[#162035] transition cursor-pointer"
               aria-label="Next Page"
             >
               <ChevronRight className="w-4 h-4" />
@@ -395,7 +403,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
         )}
       </main>
 
-      {/* Mobile Drawer (Triggered by Hamburger Button) */}
+      {/* Mobile Drawer */}
       {isMobileDrawerOpen && (
         <div className="sm:hidden fixed inset-0 z-50 flex">
           <div
@@ -403,7 +411,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
             onClick={() => setIsMobileDrawerOpen(false)}
           />
 
-          <div className="relative w-72 max-w-[80vw] bg-white dark:bg-[#111726] border-r border-slate-200 dark:border-slate-800 p-5 flex flex-col justify-between z-10 shadow-2xl animate-in slide-in-from-left duration-200 select-none">
+          <div className="relative w-72 max-w-[80vw] bg-white dark:bg-[#0e1628] border-r border-slate-200 dark:border-slate-800 p-5 flex flex-col justify-between z-10 shadow-2xl animate-in slide-in-from-left duration-150 select-none">
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                 <div className="flex items-center gap-2">
@@ -413,6 +421,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
                   </span>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setIsMobileDrawerOpen(false)}
                   className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition"
                   aria-label="Close Menu"
@@ -421,17 +430,16 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
                 </button>
               </div>
 
-              {/* Theme Selection in Menu */}
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-[#161f33] border border-slate-200 dark:border-slate-800">
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-[#162035] border border-slate-200 dark:border-slate-700">
                 <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
                   Theme Mode
                 </span>
                 <ThemeToggle />
               </div>
 
-              {/* Categories Navigation */}
               <div className="space-y-1.5 max-h-[60vh] overflow-y-auto pr-1">
                 <button
+                  type="button"
                   onClick={() => {
                     handleCategorySelect("All");
                     setIsMobileDrawerOpen(false);
@@ -439,7 +447,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
                   className={`w-full flex items-center justify-between p-2.5 rounded-xl text-xs font-bold transition ${
                     selectedCategory === "All"
                       ? "bg-blue-600 text-white shadow-xs"
-                      : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#162035]"
                   }`}
                 >
                   <span className="flex items-center gap-2">
@@ -455,6 +463,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
                   return (
                     <button
                       key={cat}
+                      type="button"
                       onClick={() => {
                         handleCategorySelect(cat);
                         setIsMobileDrawerOpen(false);
@@ -462,7 +471,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
                       className={`w-full flex items-center justify-between p-2.5 rounded-xl text-xs font-bold transition ${
                         isActive
                           ? "bg-blue-600 text-white shadow-xs"
-                          : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                          : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#162035]"
                       }`}
                     >
                       <span className="flex items-center gap-2">

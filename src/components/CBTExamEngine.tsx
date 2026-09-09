@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { ExamItem, Question } from "@/types/exam";
 import { MathText } from "@/components/MathText";
@@ -48,34 +48,50 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
 }) => {
   const storageKey = `cbt_exam_state_${exam.id}`;
 
+  // 1. Hydrate Initial State once
   const [currentIndex, setCurrentIndex] = useState<number>(() => {
     if (typeof window === "undefined") return 0;
-    const saved = localStorage.getItem(`${storageKey}_index`);
-    return saved ? Number(saved) : 0;
+    return Number(localStorage.getItem(`${storageKey}_index`)) || 0;
   });
 
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, string[]>>(() => {
     if (typeof window === "undefined") return {};
-    const saved = localStorage.getItem(`${storageKey}_answers`);
-    return saved ? JSON.parse(saved) : {};
+    try {
+      const saved = localStorage.getItem(`${storageKey}_answers`);
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
   });
 
   const [natInputs, setNatInputs] = useState<Record<number, string>>(() => {
     if (typeof window === "undefined") return {};
-    const saved = localStorage.getItem(`${storageKey}_nat`);
-    return saved ? JSON.parse(saved) : {};
+    try {
+      const saved = localStorage.getItem(`${storageKey}_nat`);
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
   });
 
   const [markedForReview, setMarkedForReview] = useState<Record<number, boolean>>(() => {
     if (typeof window === "undefined") return {};
-    const saved = localStorage.getItem(`${storageKey}_review`);
-    return saved ? JSON.parse(saved) : {};
+    try {
+      const saved = localStorage.getItem(`${storageKey}_review`);
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
   });
 
   const [visited, setVisited] = useState<Record<number, boolean>>(() => {
     if (typeof window === "undefined") return { 0: true };
-    const saved = localStorage.getItem(`${storageKey}_visited`);
-    return saved ? JSON.parse(saved) : { 0: true };
+    try {
+      const saved = localStorage.getItem(`${storageKey}_visited`);
+      return saved ? JSON.parse(saved) : { 0: true };
+    } catch {
+      return { 0: true };
+    }
   });
 
   const [modalState, setModalState] = useState<{
@@ -89,27 +105,38 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
   const [isMobilePaletteOpen, setIsMobilePaletteOpen] = useState<boolean>(false);
 
+  // Translation States
   const [translatedMap, setTranslatedMap] = useState<
     Record<number, { prompt: string; options: { key: string; text: string }[] }>
   >({});
   const [activeQuestionLang, setActiveQuestionLang] = useState<Record<number, "en" | "hi">>({});
   const [translating, setTranslating] = useState<boolean>(false);
 
+  // 2. Batched Storage Sync to prevent UI thread blocking
+  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const answersRef = useRef({ selectedAnswers, natInputs });
 
   useEffect(() => {
     answersRef.current = { selectedAnswers, natInputs };
-    const timeoutId = setTimeout(() => {
-      localStorage.setItem(`${storageKey}_index`, currentIndex.toString());
-      localStorage.setItem(`${storageKey}_answers`, JSON.stringify(selectedAnswers));
-      localStorage.setItem(`${storageKey}_nat`, JSON.stringify(natInputs));
-      localStorage.setItem(`${storageKey}_review`, JSON.stringify(markedForReview));
-      localStorage.setItem(`${storageKey}_visited`, JSON.stringify(visited));
-    }, 0);
 
-    return () => clearTimeout(timeoutId);
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+
+    syncTimeoutRef.current = setTimeout(() => {
+      try {
+        localStorage.setItem(`${storageKey}_index`, currentIndex.toString());
+        localStorage.setItem(`${storageKey}_answers`, JSON.stringify(selectedAnswers));
+        localStorage.setItem(`${storageKey}_nat`, JSON.stringify(natInputs));
+        localStorage.setItem(`${storageKey}_review`, JSON.stringify(markedForReview));
+        localStorage.setItem(`${storageKey}_visited`, JSON.stringify(visited));
+      } catch {}
+    }, 120);
+
+    return () => {
+      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    };
   }, [currentIndex, selectedAnswers, natInputs, markedForReview, visited, storageKey]);
 
+  // Back Navigation Trap
   useEffect(() => {
     window.history.pushState(null, "", window.location.href);
 
@@ -119,10 +146,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.key === "F5" ||
-        ((e.ctrlKey || e.metaKey) && (e.key === "r" || e.key === "R"))
-      ) {
+      if (e.key === "F5" || ((e.ctrlKey || e.metaKey) && (e.key === "r" || e.key === "R"))) {
         e.preventDefault();
         setModalState({ isOpen: true, type: "reload" });
       }
@@ -137,21 +161,88 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
     };
   }, []);
 
+  // Parallel Full Question Translation
+  const translateEntireQuestion = useCallback(async (q: Question) => {
+    const promptPromise = translateTextToHindi(q.prompt);
+    const optionsPromises = q.options && q.options.length > 0
+      ? Promise.all(
+          q.options.map(async (opt) => ({
+            key: opt.key,
+            text: await translateTextToHindi(opt.text),
+          }))
+        )
+      : Promise.resolve([]);
+
+    const [prompt, options] = await Promise.all([promptPromise, optionsPromises]);
+    return { prompt, options };
+  }, []);
+
+  // Non-Blocking Predictive Background Prefetch
+  useEffect(() => {
+    if (!questions || questions.length === 0) return;
+
+    const indicesToPrefetch = [currentIndex, currentIndex + 1, currentIndex + 2].filter(
+      (idx) => idx < questions.length && !translatedMap[questions[idx]?.id]
+    );
+
+    if (indicesToPrefetch.length === 0) return;
+
+    let isSubscribed = true;
+
+    const runIdlePrefetch = () => {
+      indicesToPrefetch.forEach((idx) => {
+        const targetQ = questions[idx];
+        if (!targetQ) return;
+
+        translateEntireQuestion(targetQ)
+          .then((res) => {
+            if (isSubscribed) {
+              setTranslatedMap((prev) => {
+                if (prev[targetQ.id]) return prev;
+                return { ...prev, [targetQ.id]: res };
+              });
+            }
+          })
+          .catch(() => {});
+      });
+    };
+
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      const idleId = (window as unknown as { requestIdleCallback: (cb: () => void) => number }).requestIdleCallback(
+        runIdlePrefetch
+      );
+      return () => {
+        isSubscribed = false;
+        if ("cancelIdleCallback" in window) {
+          (window as unknown as { cancelIdleCallback: (id: number) => void }).cancelIdleCallback(idleId);
+        }
+      };
+    } else {
+      const timer = setTimeout(runIdlePrefetch, 250);
+      return () => {
+        isSubscribed = false;
+        clearTimeout(timer);
+      };
+    }
+  }, [currentIndex, questions, translatedMap, translateEntireQuestion]);
+
   const clearSessionStorage = useCallback(() => {
-    localStorage.removeItem(`${storageKey}_index`);
-    localStorage.removeItem(`${storageKey}_answers`);
-    localStorage.removeItem(`${storageKey}_nat`);
-    localStorage.removeItem(`${storageKey}_review`);
-    localStorage.removeItem(`${storageKey}_visited`);
-    localStorage.removeItem(`${storageKey}_time`);
-    localStorage.removeItem("cbt_active_exam_id");
+    try {
+      localStorage.removeItem(`${storageKey}_index`);
+      localStorage.removeItem(`${storageKey}_answers`);
+      localStorage.removeItem(`${storageKey}_nat`);
+      localStorage.removeItem(`${storageKey}_review`);
+      localStorage.removeItem(`${storageKey}_visited`);
+      localStorage.removeItem(`${storageKey}_time`);
+      localStorage.removeItem("cbt_active_exam_id");
+    } catch {}
   }, [storageKey]);
 
-  const handleConfirmExit = () => {
+  const handleConfirmExit = useCallback(() => {
     clearSessionStorage();
     setModalState({ isOpen: false, type: "exit" });
     onExit();
-  };
+  }, [clearSessionStorage, onExit]);
 
   const handleConfirmSubmit = useCallback(() => {
     clearSessionStorage();
@@ -172,6 +263,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
   const currentQ = questions[currentIndex];
   const isCurrentInHindi = currentQ ? activeQuestionLang[currentQ.id] === "hi" : false;
 
+  // Instant 0ms Language Switcher
   const handleToggleCurrentQuestionLang = async () => {
     if (!currentQ) return;
 
@@ -180,70 +272,70 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
       return;
     }
 
+    // Fast-path: already in memory
     if (translatedMap[currentQ.id]) {
       setActiveQuestionLang((prev) => ({ ...prev, [currentQ.id]: "hi" }));
       return;
     }
 
+    // On-demand fallback
     setTranslating(true);
     try {
-      const translatedPrompt = await translateTextToHindi(currentQ.prompt);
-      const translatedOptions = await Promise.all(
-        currentQ.options.map(async (opt) => ({
-          key: opt.key,
-          text: await translateTextToHindi(opt.text),
-        }))
-      );
-
-      setTranslatedMap((prev) => ({
-        ...prev,
-        [currentQ.id]: {
-          prompt: translatedPrompt,
-          options: translatedOptions,
-        },
-      }));
+      const fullTranslation = await translateEntireQuestion(currentQ);
+      setTranslatedMap((prev) => ({ ...prev, [currentQ.id]: fullTranslation }));
       setActiveQuestionLang((prev) => ({ ...prev, [currentQ.id]: "hi" }));
     } finally {
       setTranslating(false);
     }
   };
 
-  const handleOptionSelect = useCallback((key: string) => {
-    if (!currentQ) return;
-    if (currentQ.type === "MCQ") {
-      setSelectedAnswers((prev) => ({ ...prev, [currentQ.id]: [key] }));
-    } else if (currentQ.type === "MSQ") {
-      setSelectedAnswers((prev) => {
-        const current = prev[currentQ.id] || [];
-        const next = current.includes(key)
-          ? current.filter((k) => k !== key)
-          : [...current, key];
-        return { ...prev, [currentQ.id]: next };
-      });
-    }
-  }, [currentQ]);
+  // Instant O(1) Option Select
+  const handleOptionSelect = useCallback(
+    (key: string) => {
+      if (!currentQ) return;
+      const qId = currentQ.id;
 
-  const handleNatChange = useCallback((val: string) => {
-    if (!currentQ) return;
-    setNatInputs((prev) => ({ ...prev, [currentQ.id]: val }));
-    setSelectedAnswers((prev) => ({ ...prev, [currentQ.id]: val ? [val] : [] }));
-  }, [currentQ]);
+      if (currentQ.type === "MCQ") {
+        setSelectedAnswers((prev) => ({ ...prev, [qId]: [key] }));
+      } else if (currentQ.type === "MSQ") {
+        setSelectedAnswers((prev) => {
+          const current = prev[qId] || [];
+          const next = current.includes(key) ? current.filter((k) => k !== key) : [...current, key];
+          return { ...prev, [qId]: next };
+        });
+      }
+    },
+    [currentQ]
+  );
 
-  const handleClearCurrent = () => {
+  const handleNatChange = useCallback(
+    (val: string) => {
+      if (!currentQ) return;
+      const qId = currentQ.id;
+      setNatInputs((prev) => ({ ...prev, [qId]: val }));
+      setSelectedAnswers((prev) => ({ ...prev, [qId]: val ? [val] : [] }));
+    },
+    [currentQ]
+  );
+
+  const handleClearCurrent = useCallback(() => {
     if (!currentQ) return;
+    const qId = currentQ.id;
     setSelectedAnswers((prev) => {
+      if (!prev[qId]) return prev;
       const next = { ...prev };
-      delete next[currentQ.id];
+      delete next[qId];
       return next;
     });
     if (currentQ.type === "NAT") {
       setNatInputs((prev) => {
+        if (!prev[qId]) return prev;
         const next = { ...prev };
-        delete next[currentQ.id];
+        delete next[qId];
         return next;
       });
     }
-  };
+  }, [currentQ]);
 
   const currentDisplayPrompt =
     isCurrentInHindi && translatedMap[currentQ?.id]?.prompt
@@ -255,19 +347,24 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
       ? translatedMap[currentQ.id].options
       : currentQ?.options || [];
 
-  const answeredQuestionsCount = Object.values(selectedAnswers).filter(
-    (a) => a && a.length > 0
-  ).length;
+  const answeredQuestionsCount = useMemo(() => {
+    let count = 0;
+    for (const key in selectedAnswers) {
+      if (selectedAnswers[key]?.length > 0) count++;
+    }
+    return count;
+  }, [selectedAnswers]);
 
   return (
     <div
       suppressHydrationWarning
-      className="min-h-screen bg-[#f8fafc] dark:bg-[#070b13] text-slate-900 dark:text-slate-100 flex flex-col justify-between pb-16 lg:pb-0 transition-colors duration-150"
+      className="min-h-screen bg-[#f8fafc] dark:bg-[#070b13] text-slate-900 dark:text-slate-100 flex flex-col justify-between pb-16 lg:pb-0 transition-colors duration-100"
     >
-      {/* Top Header */}
+      {/* Top Sticky Header */}
       <header className="bg-white dark:bg-[#0d1424] border-b border-slate-200 dark:border-slate-800/90 px-3 sm:px-8 py-2.5 sm:py-3 flex items-center justify-between shadow-xs sticky top-0 z-30 select-none">
         <div className="flex items-center gap-2 sm:gap-3 truncate pr-2">
           <button
+            type="button"
             onClick={() => setIsMobileMenuOpen(true)}
             className="lg:hidden p-1.5 sm:p-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer shrink-0 border border-slate-200 dark:border-slate-700"
             aria-label="Open Exam Controls"
@@ -277,6 +374,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
           </button>
 
           <button
+            type="button"
             onClick={() => setModalState({ isOpen: true, type: "exit" })}
             className="hidden lg:flex p-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer shrink-0"
             title="Exit Exam"
@@ -306,6 +404,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
           />
 
           <button
+            type="button"
             onClick={() => setModalState({ isOpen: true, type: "submit" })}
             className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-black px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl transition flex items-center gap-1.5 shadow-md shadow-emerald-600/20 cursor-pointer shrink-0"
             title="Submit Exam"
@@ -378,7 +477,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
               </div>
             )}
 
-            {/* Question Prompt */}
+            {/* Question Prompt with Math Rendering */}
             <div className="text-sm sm:text-base leading-relaxed text-slate-900 dark:text-slate-100 space-y-3 font-normal">
               {currentDisplayPrompt && <MathText content={currentDisplayPrompt} />}
             </div>
@@ -389,7 +488,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
               </div>
             )}
 
-            {/* High-Contrast Options List */}
+            {/* Options List */}
             <div className="mt-6 space-y-3">
               {currentQ && (currentQ.type === "MCQ" || currentQ.type === "MSQ" || currentDisplayOptions.length > 0) ? (
                 currentDisplayOptions.length > 0 ? (
@@ -400,6 +499,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
                     return (
                       <button
                         key={opt.key}
+                        type="button"
                         onClick={() => handleOptionSelect(opt.key)}
                         className={`w-full text-left p-4 rounded-2xl border transition-all flex items-start sm:items-center gap-3.5 sm:gap-4 text-xs sm:text-sm cursor-pointer outline-none focus:outline-none ${
                           isChecked
@@ -409,7 +509,6 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
                             : "border-slate-200 dark:border-slate-700/80 bg-slate-50/70 dark:bg-[#162035] hover:border-slate-300 dark:hover:border-slate-500 hover:bg-slate-100/90 dark:hover:bg-[#1e2c48] text-slate-800 dark:text-slate-200"
                         }`}
                       >
-                        {/* Selector Indicator (Radio / Checkbox) */}
                         <div className="pt-0.5 sm:pt-0 shrink-0 select-none">
                           {isMSQ ? (
                             <div
@@ -434,7 +533,6 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
                           )}
                         </div>
 
-                        {/* Letter Badge (A, B, C, D) */}
                         <div
                           className={`w-7 h-7 rounded-xl flex items-center justify-center font-black text-xs shrink-0 select-none transition-all ${
                             isChecked
@@ -447,7 +545,6 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
                           {opt.key}
                         </div>
 
-                        {/* Option Text & Formula */}
                         <div className="flex-1 leading-relaxed pt-0.5 font-medium">
                           <MathText content={opt.text} />
                         </div>
@@ -460,7 +557,6 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
                   </div>
                 )
               ) : (
-                /* NAT Input Container */
                 <div className="p-5 bg-slate-50 dark:bg-[#162035] border border-slate-200 dark:border-slate-700 rounded-2xl">
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2.5 select-none">
                     Enter Numerical Value (NAT):
@@ -481,6 +577,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
           <div className="hidden lg:flex flex-wrap items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-5 mt-6 gap-2 select-none">
             <div className="flex items-center gap-2">
               <button
+                type="button"
                 onClick={() => {
                   if (currentQ) {
                     setMarkedForReview((prev) => ({
@@ -499,6 +596,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
                 {currentQ && markedForReview[currentQ.id] ? "Marked" : "Mark Review"}
               </button>
               <button
+                type="button"
                 onClick={handleClearCurrent}
                 className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-[#162035] text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-[#1e2c48] transition cursor-pointer"
               >
@@ -508,6 +606,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
 
             <div className="flex items-center gap-2">
               <button
+                type="button"
                 onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
                 disabled={currentIndex === 0}
                 className="p-2 border border-slate-200 dark:border-slate-700 rounded-xl disabled:opacity-30 hover:bg-slate-50 dark:hover:bg-[#162035] transition cursor-pointer text-slate-700 dark:text-slate-300"
@@ -515,6 +614,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
                 <ChevronLeft className="w-5 h-5" />
               </button>
               <button
+                type="button"
                 onClick={() => {
                   if (currentIndex < questions.length - 1) {
                     const next = currentIndex + 1;
@@ -547,6 +647,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
       {/* Mobile Bottom Navigation */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-[#0d1424]/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 p-2.5 px-3 flex items-center justify-between gap-1.5 shadow-lg z-40 select-none">
         <button
+          type="button"
           onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
           disabled={currentIndex === 0}
           className="p-2 border border-slate-200 dark:border-slate-700 rounded-xl disabled:opacity-30 hover:bg-slate-50 dark:hover:bg-slate-800 active:scale-95 transition"
@@ -555,6 +656,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
         </button>
 
         <button
+          type="button"
           onClick={handleClearCurrent}
           className="p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-95 transition"
           title="Clear"
@@ -563,6 +665,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
         </button>
 
         <button
+          type="button"
           onClick={() => {
             if (currentQ) {
               setMarkedForReview((prev) => ({
@@ -582,6 +685,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
         </button>
 
         <button
+          type="button"
           onClick={() => setIsMobilePaletteOpen(true)}
           className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#162035] text-slate-800 dark:text-slate-200 text-xs font-bold active:scale-95 transition"
         >
@@ -592,6 +696,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
         </button>
 
         <button
+          type="button"
           onClick={() => {
             if (currentIndex < questions.length - 1) {
               const next = currentIndex + 1;
@@ -615,7 +720,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
             onClick={() => setIsMobileMenuOpen(false)}
           />
 
-          <div className="relative w-72 max-w-[80vw] bg-white dark:bg-[#0e1628] border-r border-slate-200 dark:border-slate-800 p-5 flex flex-col justify-between z-10 shadow-2xl animate-in slide-in-from-left duration-200 select-none">
+          <div className="relative w-72 max-w-[80vw] bg-white dark:bg-[#0e1628] border-r border-slate-200 dark:border-slate-800 p-5 flex flex-col justify-between z-10 shadow-2xl animate-in slide-in-from-left duration-150 select-none">
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                 <div>
@@ -627,6 +732,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
                   </p>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
                   aria-label="Close Menu"
@@ -644,6 +750,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
                 </div>
 
                 <button
+                  type="button"
                   onClick={() => {
                     setIsMobileMenuOpen(false);
                     setIsMobilePaletteOpen(true);
@@ -663,6 +770,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
 
             <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
               <button
+                type="button"
                 onClick={() => {
                   setIsMobileMenuOpen(false);
                   setModalState({ isOpen: true, type: "exit" });
