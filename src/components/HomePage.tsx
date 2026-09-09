@@ -3,6 +3,7 @@
 import React, { useState, useMemo } from "react";
 import { AVAILABLE_TESTS, CATEGORY_TAXONOMY } from "../data/exams";
 import { ExamItem } from "../types/exam";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   Search,
   ChevronRight,
@@ -90,53 +91,59 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
   const isSubjectBoxVisible = selectedCategory !== "All" && currentSubCategories.length > 0;
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-800" suppressHydrationWarning>
-      <main className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4">
+    <div className="min-h-screen bg-[#f8fafc] dark:bg-[#090d16] text-slate-900 dark:text-slate-100 transition-colors duration-150" suppressHydrationWarning>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
         {/* Top Header */}
-        <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white rounded-2xl px-4 py-3 sm:px-6 sm:py-3.5 shadow-xs mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-xl bg-blue-600 flex items-center justify-center font-bold text-white shadow-xs shrink-0">
-              <BookOpen className="w-4 h-4" />
+        <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white rounded-3xl px-5 py-4 sm:px-7 sm:py-5 shadow-sm mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border border-slate-800">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-2xl bg-blue-600 flex items-center justify-center font-bold text-white shadow-xs shrink-0">
+              <BookOpen className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center gap-1.5">
-                <h1 className="text-sm sm:text-base font-black tracking-tight leading-tight">
+              <div className="flex items-center gap-2">
+                <h1 className="text-base sm:text-lg font-black tracking-tight leading-tight">
                   Free Mock Test Portal
                 </h1>
-                <span className="text-[9px] font-black uppercase px-1.5 py-0.5 bg-emerald-500 text-white rounded-md tracking-wider">
+                <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-emerald-500 text-white rounded-md tracking-wider">
                   100% Free
                 </span>
               </div>
-              <p className="text-[10px] text-slate-300">
-                Free official pattern computer-based tests, sectionals & chapter drills
+              <p className="text-xs text-slate-300">
+                Official pattern computer-based tests, sectionals & chapter drills
               </p>
             </div>
           </div>
 
-          <div className="relative w-full sm:w-72">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setCurrentPage(1);
-              }}
-              placeholder="Search tests, topics, subjects..."
-              className="w-full bg-white text-slate-900 pl-8.5 pr-3 py-1.5 rounded-xl text-xs font-medium placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs"
-            />
+          <div className="flex items-center gap-2.5 w-full sm:w-auto">
+            {/* Theme Toggle Button */}
+            <ThemeToggle />
+
+            {/* Search Box */}
+            <div className="relative flex-1 sm:w-80">
+              <Search className="w-4 h-4 absolute left-3.5 top-2.5 text-slate-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
+                placeholder="Search tests, topics, subjects..."
+                className="w-full bg-white/10 dark:bg-slate-900/80 text-white placeholder:text-slate-400 pl-10 pr-4 py-2 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 border border-white/10 dark:border-slate-700 shadow-xs"
+              />
+            </div>
           </div>
         </div>
 
-        {/* Touch-Friendly Category Tabs (Mobile Scrollable) */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-2 mb-3 scrollbar-none touch-pan-x">
+        {/* Category Pill Tabs */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-4 scrollbar-none touch-pan-x">
           <button
             suppressHydrationWarning
             onClick={() => handleCategorySelect("All")}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer shrink-0 ${
+            className={`px-4 py-2 rounded-2xl text-xs font-black transition flex items-center gap-2 whitespace-nowrap cursor-pointer shrink-0 ${
               selectedCategory === "All"
                 ? "bg-blue-600 text-white shadow-xs"
-                : "bg-white text-slate-700 hover:bg-slate-100 border border-slate-200"
+                : "bg-white dark:bg-[#111726] text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800"
             }`}
           >
             <Sparkles className="w-3.5 h-3.5" />
@@ -145,7 +152,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
               className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-1 ${
                 selectedCategory === "All"
                   ? "bg-blue-700 text-white"
-                  : "bg-slate-100 text-slate-600"
+                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
               }`}
             >
               {AVAILABLE_TESTS.length}
@@ -160,17 +167,19 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
                 suppressHydrationWarning
                 key={cat}
                 onClick={() => handleCategorySelect(cat)}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer shrink-0 ${
+                className={`px-4 py-2 rounded-2xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer shrink-0 ${
                   isActive
-                    ? "bg-slate-900 text-white shadow-xs"
-                    : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                    ? "bg-slate-900 dark:bg-blue-600 text-white shadow-xs"
+                    : "bg-white dark:bg-[#111726] text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800"
                 }`}
               >
                 <span>{cat}</span>
                 {count > 0 && (
                   <span
                     className={`text-[10px] px-1.5 py-0.2 rounded-full font-semibold ${
-                      isActive ? "bg-slate-800 text-slate-200" : "bg-slate-100 text-slate-500"
+                      isActive
+                        ? "bg-slate-800 dark:bg-blue-700 text-slate-200 dark:text-white"
+                        : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
                     }`}
                   >
                     {count}
@@ -183,40 +192,40 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
 
         {/* Sub-Category/Stream Drawer */}
         {isSubjectBoxVisible && (
-          <div className="bg-white border border-blue-200/80 rounded-2xl p-3.5 sm:p-5 shadow-xs mb-3 sm:mb-4 animate-in fade-in slide-in-from-top-2 duration-150">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 mb-3">
-              <div className="flex items-center gap-1.5">
-                <LayoutGrid className="w-4 h-4 text-blue-600" />
-                <h2 className="text-xs font-black uppercase tracking-wider text-slate-800">
+          <div className="bg-white dark:bg-[#111726] border border-blue-200 dark:border-slate-800 rounded-3xl p-4 sm:p-6 shadow-xs mb-5 animate-in fade-in slide-in-from-top-2 duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3 mb-3.5">
+              <div className="flex items-center gap-2">
+                <LayoutGrid className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <h2 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
                   {selectedCategory} Subjects & Streams
                 </h2>
               </div>
-                <button
-                  suppressHydrationWarning
-                  onClick={() => handleCategorySelect("All")}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100 hover:border-rose-300 transition-all cursor-pointer shadow-2xs active:scale-95"
-                  title="Clear filter and show all tests"
-                >
-                  <span className="w-3.5 h-3.5 rounded-full bg-rose-600 text-white flex items-center justify-center shrink-0">
-                    <X className="w-2.5 h-2.5 stroke-[3]" />
-                  </span>
-                  <span>Clear Filter</span>
-                </button>
+              <button
+                suppressHydrationWarning
+                onClick={() => handleCategorySelect("All")}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-all cursor-pointer active:scale-95 shadow-2xs"
+                title="Clear filter and show all tests"
+              >
+                <span className="w-3.5 h-3.5 rounded-full bg-rose-600 text-white flex items-center justify-center shrink-0">
+                  <X className="w-2.5 h-2.5 stroke-[3]" />
+                </span>
+                <span>Clear Filter</span>
+              </button>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
               <button
                 suppressHydrationWarning
                 onClick={() => handleSubCategorySelect("All")}
-                className={`px-2.5 sm:px-3 py-2 rounded-xl text-xs font-semibold text-left transition border cursor-pointer flex items-center justify-between ${
+                className={`px-3 py-2.5 rounded-2xl text-xs font-semibold text-left transition border cursor-pointer flex items-center justify-between ${
                   selectedSubCategory === "All"
-                    ? "border-blue-600 bg-blue-50/70 text-blue-700 font-bold"
-                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    ? "border-blue-600 bg-blue-50/70 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-bold"
+                    : "border-slate-200 dark:border-slate-800 bg-white dark:bg-[#161f33] text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
                 }`}
               >
                 <span className="truncate">All {selectedCategory}</span>
                 {selectedSubCategory === "All" && (
-                  <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0 ml-1" />
+                  <CheckCircle2 className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 ml-1" />
                 )}
               </button>
 
@@ -227,15 +236,15 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
                     suppressHydrationWarning
                     key={sub}
                     onClick={() => handleSubCategorySelect(sub)}
-                    className={`px-2.5 sm:px-3 py-2 rounded-xl text-xs font-semibold text-left transition border cursor-pointer flex items-center justify-between ${
+                    className={`px-3 py-2.5 rounded-2xl text-xs font-semibold text-left transition border cursor-pointer flex items-center justify-between ${
                       isSelected
-                        ? "border-blue-600 bg-blue-50/70 text-blue-700 font-bold"
-                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                        ? "border-blue-600 bg-blue-50/70 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-bold"
+                        : "border-slate-200 dark:border-slate-800 bg-white dark:bg-[#161f33] text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
                     }`}
                   >
                     <span className="truncate">{sub}</span>
                     {isSelected && (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0 ml-1" />
+                      <CheckCircle2 className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 ml-1" />
                     )}
                   </button>
                 );
@@ -245,11 +254,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
         )}
 
         {/* Results Metadata */}
-        <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-slate-500 font-medium mb-2.5 px-1">
+        <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-medium mb-3 px-1">
           <span>
-            Showing <strong className="text-slate-800">{filteredTests.length}</strong> mock{" "}
+            Showing <strong className="text-slate-900 dark:text-slate-100">{filteredTests.length}</strong> mock{" "}
             {filteredTests.length === 1 ? "paper" : "papers"} in{" "}
-            <span className="text-blue-600 font-bold">
+            <span className="text-blue-600 dark:text-blue-400 font-bold">
               {selectedCategory === "All" ? "All Categories" : selectedCategory}
               {selectedSubCategory !== "All" ? ` > ${selectedSubCategory}` : ""}
             </span>
@@ -259,59 +268,59 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
           </span>
         </div>
 
-        {/* 3 Mock Test Cards Per Row Grid */}
+        {/* Mock Test Cards */}
         {paginatedTests.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {paginatedTests.map((test, idx) => (
               <div
                 key={`${test.id}-${idx}`}
-                className="bg-white border border-slate-200 rounded-2xl p-3.5 shadow-2xs hover:border-blue-400 hover:shadow-xs transition flex flex-col justify-between"
+                className="bg-white dark:bg-[#111726] border border-slate-200 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xs hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md transition-all flex flex-col justify-between"
               >
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[9.5px] font-extrabold uppercase px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md truncate max-w-[70%]">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-md truncate max-w-[70%]">
                       {test.subCategory || test.category}
                     </span>
-                    <span className="text-[9px] font-bold px-1.5 py-0.2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded">
+                    <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-md">
                       Free
                     </span>
                   </div>
 
-                  <h3 className="font-bold text-xs sm:text-sm text-slate-900 leading-snug line-clamp-2 min-h-[2.4rem]">
+                  <h3 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-slate-100 leading-snug line-clamp-2 min-h-[2.6rem]">
                     {test.title}
                   </h3>
 
-                  <div className="mt-1 flex items-center gap-1.5 text-[10px] text-slate-500 font-medium truncate">
-                    <span className="font-semibold text-slate-700">{test.subject}</span>
+                  <div className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-medium truncate">
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">{test.subject}</span>
                     {test.chapter && (
                       <>
                         <span>•</span>
-                        <span className="truncate text-slate-400">{test.chapter}</span>
+                        <span className="truncate text-slate-400 dark:text-slate-500">{test.chapter}</span>
                       </>
                     )}
                   </div>
 
-                  <div className="grid grid-cols-3 gap-0.5 mt-2.5 py-1.5 bg-slate-50 border border-slate-100 rounded-lg text-center">
+                  <div className="grid grid-cols-3 gap-1 mt-3.5 py-2 bg-slate-50 dark:bg-[#161f33] border border-slate-100 dark:border-slate-800 rounded-xl text-center">
                     <div>
-                      <p className="text-[7.5px] text-slate-400 font-bold uppercase">Questions</p>
-                      <p className="text-xs font-black text-slate-800">{test.totalQuestions}</p>
+                      <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase">Questions</p>
+                      <p className="text-xs font-black text-slate-800 dark:text-slate-200">{test.totalQuestions}</p>
                     </div>
-                    <div className="border-x border-slate-200">
-                      <p className="text-[7.5px] text-slate-400 font-bold uppercase">Duration</p>
-                      <p className="text-xs font-black text-slate-800">{test.durationMins}m</p>
+                    <div className="border-x border-slate-200 dark:border-slate-700">
+                      <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase">Duration</p>
+                      <p className="text-xs font-black text-slate-800 dark:text-slate-200">{test.durationMins}m</p>
                     </div>
                     <div>
-                      <p className="text-[7.5px] text-slate-400 font-bold uppercase">Marks</p>
-                      <p className="text-xs font-black text-slate-800">{test.maxMarks}</p>
+                      <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase">Marks</p>
+                      <p className="text-xs font-black text-slate-800 dark:text-slate-200">{test.maxMarks}</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-3 pt-2 border-t border-slate-100">
+                <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
                   <button
                     suppressHydrationWarning
                     onClick={() => onSelectExam(test)}
-                    className="w-full bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-bold py-2 px-3 rounded-xl text-xs flex items-center justify-center gap-1 transition cursor-pointer"
+                    className="w-full bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs"
                   >
                     Attempt CBT Now <ChevronRight className="w-3.5 h-3.5" />
                   </button>
@@ -320,19 +329,19 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
             ))}
           </div>
         ) : (
-          <div className="bg-white border border-slate-200 rounded-2xl p-10 text-center text-slate-400 text-xs">
+          <div className="bg-white dark:bg-[#111726] border border-slate-200 dark:border-slate-800 rounded-3xl p-12 text-center text-slate-400 dark:text-slate-500 text-xs">
             No mock test papers found for this selection. Try selecting another stream or clearing the search.
           </div>
         )}
 
         {/* Pagination Bar */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-1 mt-5 mb-2">
+          <div className="flex items-center justify-center gap-1.5 mt-6 mb-2">
             <button
               suppressHydrationWarning
               onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
               disabled={currentPage === 1}
-              className="p-1.5 border border-slate-200 rounded-lg bg-white text-slate-600 disabled:opacity-40 hover:bg-slate-50 transition cursor-pointer"
+              className="p-2 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-[#111726] text-slate-700 dark:text-slate-300 disabled:opacity-30 hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
               aria-label="Previous Page"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -343,10 +352,10 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
                 suppressHydrationWarning
                 key={page}
                 onClick={() => setCurrentPage(page)}
-                className={`h-7 w-7 rounded-lg text-xs font-bold transition cursor-pointer ${
+                className={`h-8 w-8 rounded-xl text-xs font-bold transition cursor-pointer ${
                   currentPage === page
-                    ? "bg-blue-600 text-white"
-                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+                    ? "bg-blue-600 text-white shadow-xs"
+                    : "bg-white dark:bg-[#111726] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800"
                 }`}
               >
                 {page}
@@ -357,7 +366,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
               suppressHydrationWarning
               onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
               disabled={currentPage === totalPages}
-              className="p-1.5 border border-slate-200 rounded-lg bg-white text-slate-600 disabled:opacity-40 hover:bg-slate-50 transition cursor-pointer"
+              className="p-2 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-[#111726] text-slate-700 dark:text-slate-300 disabled:opacity-30 hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
               aria-label="Next Page"
             >
               <ChevronRight className="w-4 h-4" />
