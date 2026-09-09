@@ -6,15 +6,18 @@ import { ExamItem, Question } from "@/types/exam";
 import { MathText } from "@/components/MathText";
 import { QuestionPalette } from "@/components/QuestionPalette";
 import { ExamTimer } from "@/components/ExamTimer";
+import { translateTextToHindi } from "@/utils/translate";
 import {
   Send,
   ArrowLeft,
   Bookmark,
   ChevronLeft,
   ChevronRight,
-  LayoutGrid,
   Check,
   RotateCcw,
+  LayoutGrid,
+  Languages,
+  Loader2,
 } from "lucide-react";
 
 const MermaidRenderer = dynamic(
@@ -70,10 +73,16 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
     return saved ? JSON.parse(saved) : { 0: true };
   });
 
+  // Per-question Hindi translation state
+  const [translatedMap, setTranslatedMap] = useState<
+    Record<number, { prompt: string; options: { key: string; text: string }[] }>
+  >({});
+  const [activeQuestionLang, setActiveQuestionLang] = useState<Record<number, "en" | "hi">>({});
+  const [translating, setTranslating] = useState<boolean>(false);
+
   const [isMobilePaletteOpen, setIsMobilePaletteOpen] = useState<boolean>(false);
   const answersRef = useRef({ selectedAnswers, natInputs });
 
-  // Asynchronous storage sync: keeps state persisted without locking the UI thread
   useEffect(() => {
     answersRef.current = { selectedAnswers, natInputs };
     const timeoutId = setTimeout(() => {
@@ -87,7 +96,6 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
     return () => clearTimeout(timeoutId);
   }, [currentIndex, selectedAnswers, natInputs, markedForReview, visited, storageKey]);
 
-  // Intercept reload keys & browser unload
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "F5" || ((e.ctrlKey || e.metaKey) && (e.key === "r" || e.key === "R"))) {
@@ -137,14 +145,50 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
   }, []);
 
   const currentQ = questions[currentIndex];
+  const isCurrentInHindi = currentQ ? activeQuestionLang[currentQ.id] === "hi" : false;
+
+  // Toggle translation on-demand for the current question only
+  const handleToggleCurrentQuestionLang = async () => {
+    if (!currentQ) return;
+
+    if (isCurrentInHindi) {
+      setActiveQuestionLang((prev) => ({ ...prev, [currentQ.id]: "en" }));
+      return;
+    }
+
+    if (translatedMap[currentQ.id]) {
+      setActiveQuestionLang((prev) => ({ ...prev, [currentQ.id]: "hi" }));
+      return;
+    }
+
+    setTranslating(true);
+    try {
+      const translatedPrompt = await translateTextToHindi(currentQ.prompt);
+      const translatedOptions = await Promise.all(
+        currentQ.options.map(async (opt) => ({
+          key: opt.key,
+          text: await translateTextToHindi(opt.text),
+        }))
+      );
+
+      setTranslatedMap((prev) => ({
+        ...prev,
+        [currentQ.id]: {
+          prompt: translatedPrompt,
+          options: translatedOptions,
+        },
+      }));
+      setActiveQuestionLang((prev) => ({ ...prev, [currentQ.id]: "hi" }));
+    } finally {
+      setTranslating(false);
+    }
+  };
 
   const handleOptionSelect = useCallback((key: string) => {
     if (!currentQ) return;
     if (currentQ.type === "MCQ") {
-      // Single Choice (Radio behavior)
       setSelectedAnswers((prev) => ({ ...prev, [currentQ.id]: [key] }));
     } else if (currentQ.type === "MSQ") {
-      // Multiple Choice (Checkbox behavior)
       setSelectedAnswers((prev) => {
         const current = prev[currentQ.id] || [];
         const next = current.includes(key)
@@ -176,6 +220,16 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
       });
     }
   };
+
+  const currentDisplayPrompt =
+    isCurrentInHindi && translatedMap[currentQ?.id]?.prompt
+      ? translatedMap[currentQ.id].prompt
+      : currentQ?.prompt;
+
+  const currentDisplayOptions =
+    isCurrentInHindi && translatedMap[currentQ?.id]?.options
+      ? translatedMap[currentQ.id].options
+      : currentQ?.options || [];
 
   const answeredQuestionsCount = Object.values(selectedAnswers).filter(
     (a) => a && a.length > 0
@@ -222,25 +276,24 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
         </div>
       </header>
 
-      {/* Main Question + Palette Container */}
+      {/* Main Question View */}
       <div className="flex-1 flex flex-col lg:flex-row max-w-7xl w-full mx-auto p-3 sm:p-6 gap-4 sm:gap-6">
         <section className="flex-1 bg-white rounded-2xl sm:rounded-3xl border border-slate-200 p-4 sm:p-8 shadow-xs flex flex-col justify-between">
           <div>
-            {/* Question Header & Type Indicators */}
+            {/* Question Header & On-Demand Language Toggle */}
             <div className="flex flex-wrap items-center justify-between border-b border-slate-100 pb-3 mb-4 sm:mb-5 gap-2 select-none">
               <div className="flex items-center gap-2">
                 <span className="text-xs sm:text-sm font-black uppercase tracking-wider text-blue-600">
                   Question {currentIndex + 1}
                 </span>
 
-                {/* Distinct Badges for MCQ vs MSQ vs NAT */}
                 {currentQ?.type === "MCQ" && (
                   <span className="text-[10px] sm:text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
                     MCQ (Single Choice)
                   </span>
                 )}
                 {currentQ?.type === "MSQ" && (
-                  <span className="text-[10px] sm:text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 animate-pulse">
+                  <span className="text-[10px] sm:text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
                     MSQ (Multiple Choice)
                   </span>
                 )}
@@ -251,12 +304,33 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
                 )}
               </div>
 
-              <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-md">
-                +2 Marks • Negative {currentQ?.type === "MCQ" ? "-0.66" : "0"}
-              </span>
+              <div className="flex items-center gap-2">
+                {/* On-Demand Per-Question Hindi Switch */}
+                <button
+                  type="button"
+                  onClick={handleToggleCurrentQuestionLang}
+                  disabled={translating}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[11px] font-bold border transition cursor-pointer active:scale-95 ${
+                    isCurrentInHindi
+                      ? "bg-blue-600 border-blue-600 text-white shadow-xs"
+                      : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+                  }`}
+                  title="Translate this question"
+                >
+                  {translating ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                  ) : (
+                    <Languages className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isCurrentInHindi ? "English" : "हिंदी"}</span>
+                </button>
+
+                <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-md">
+                  +2 Marks • Negative {currentQ?.type === "MCQ" ? "-0.66" : "0"}
+                </span>
+              </div>
             </div>
 
-            {/* Hint alert explaining the option format */}
             {currentQ?.type === "MSQ" && (
               <div className="mb-4 bg-purple-50/70 border border-purple-200 rounded-xl p-2.5 text-[11px] text-purple-800 font-semibold flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-purple-600 shrink-0" />
@@ -264,18 +338,22 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
               </div>
             )}
 
-            {/* Question Prompt */}
+            {/* Render Question Text */}
             <div className="text-sm sm:text-base leading-relaxed text-slate-800 space-y-3 font-normal">
-              {currentQ && <MathText content={currentQ.prompt} />}
+              {currentDisplayPrompt && <MathText content={currentDisplayPrompt} />}
             </div>
 
-            {currentQ?.mermaidChart && <MermaidRenderer chart={currentQ.mermaidChart} />}
+            {currentQ?.mermaidChart && (
+              <div className="my-4">
+                <MermaidRenderer chart={currentQ.mermaidChart} />
+              </div>
+            )}
 
-            {/* Options Rendering */}
+            {/* Render Options */}
             <div className="mt-5 sm:mt-6 space-y-2.5 sm:space-y-3">
               {currentQ && currentQ.type !== "NAT" ? (
-                currentQ.options.length > 0 ? (
-                  currentQ.options.map((opt) => {
+                currentDisplayOptions.length > 0 ? (
+                  currentDisplayOptions.map((opt) => {
                     const isChecked = (selectedAnswers[currentQ.id] || []).includes(opt.key);
                     const isMSQ = currentQ.type === "MSQ";
 
@@ -291,10 +369,8 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
                             : "border-slate-200 hover:border-slate-300 bg-white text-slate-700 hover:bg-slate-50/50"
                         }`}
                       >
-                        {/* Distinct Icon Selector: Radio (Circle) for MCQ vs Checkbox (Square) for MSQ */}
                         <div className="pt-0.5 sm:pt-0 shrink-0 select-none">
                           {isMSQ ? (
-                            // MSQ: Square Checkbox
                             <div
                               className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${
                                 isChecked
@@ -305,7 +381,6 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
                               {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                             </div>
                           ) : (
-                            // MCQ: Circular Radio Button
                             <div
                               className={`w-5 h-5 rounded-full border flex items-center justify-center transition-all ${
                                 isChecked
@@ -318,7 +393,6 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
                           )}
                         </div>
 
-                        {/* Option Key Tag (A, B, C, D) */}
                         <div
                           className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg sm:rounded-xl flex items-center justify-center font-black text-xs shrink-0 select-none ${
                             isChecked
@@ -357,7 +431,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
             </div>
           </div>
 
-          {/* Desktop Footer Action Buttons */}
+          {/* Desktop Footer Actions */}
           <div className="hidden lg:flex flex-wrap items-center justify-between border-t border-slate-100 pt-5 mt-6 gap-2 select-none">
             <div className="flex items-center gap-2">
               <button
@@ -411,7 +485,7 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
           </div>
         </section>
 
-        {/* Question Palette Sidebar / Drawer Component */}
+        {/* Question Palette Sidebar */}
         <QuestionPalette
           questions={questions}
           currentIndex={currentIndex}
@@ -424,9 +498,8 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
         />
       </div>
 
-      {/* MOBILE ONLY: Sticky Bottom Touch Navigation Bar */}
+      {/* Mobile Sticky Touch Navigation */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 p-2.5 px-3 flex items-center justify-between gap-1.5 shadow-lg z-40 select-none">
-        {/* Previous */}
         <button
           onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
           disabled={currentIndex === 0}
@@ -436,7 +509,6 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
           <ChevronLeft className="w-4 h-4 text-slate-700" />
         </button>
 
-        {/* Clear Button */}
         <button
           onClick={handleClearCurrent}
           className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 active:scale-95 transition"
@@ -445,7 +517,6 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
           <RotateCcw className="w-4 h-4" />
         </button>
 
-        {/* Mark Review */}
         <button
           onClick={() => {
             if (currentQ) {
@@ -465,7 +536,6 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
           <Bookmark className="w-4 h-4" />
         </button>
 
-        {/* Interactive Palette Drawer Trigger */}
         <button
           onClick={() => setIsMobilePaletteOpen(true)}
           className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 text-xs font-bold active:scale-95 transition"
@@ -476,7 +546,6 @@ export const CBTExamEngine: React.FC<CBTExamEngineProps> = ({
           </span>
         </button>
 
-        {/* Save & Next */}
         <button
           onClick={() => {
             if (currentIndex < questions.length - 1) {

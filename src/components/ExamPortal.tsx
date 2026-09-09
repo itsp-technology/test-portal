@@ -35,18 +35,17 @@ export function ExamPortal() {
     return [];
   });
 
-  // Only restore directly to "cbt" if the user was actively in an ongoing test
+  // Only restore directly to "cbt" if there is verified ongoing attempt data
   const [activeScreen, setActiveScreen] = useState<"home" | "instructions" | "cbt" | "result">(() => {
     if (typeof window === "undefined") return "home";
     const savedId = localStorage.getItem("cbt_active_exam_id");
     if (!savedId) return "home";
 
-    // Verify if there was an ongoing attempt saved
-    const hasActiveProgress =
+    const hasActiveAttempt =
       localStorage.getItem(`cbt_exam_state_${savedId}_visited`) !== null ||
       localStorage.getItem(`cbt_exam_state_${savedId}_answers`) !== null;
 
-    return hasActiveProgress ? "cbt" : "home";
+    return hasActiveAttempt ? "cbt" : "home";
   });
 
   const [loading, setLoading] = useState<boolean>(false);
@@ -58,7 +57,7 @@ export function ExamPortal() {
     if (!selectedExam || questions.length > 0 || activeScreen !== "cbt") return;
 
     let isMounted = true;
-    getOrFetchExamQuestions(selectedExam.id)
+    getOrFetchExamQuestions(selectedExam.id, selectedExam.filePath)
       .then((data) => {
         if (isMounted && data.length > 0) {
           setQuestions(data);
@@ -76,17 +75,15 @@ export function ExamPortal() {
     };
   }, [selectedExam, questions.length, activeScreen]);
 
-  // Selecting an exam from the home catalog -> ALWAYS open Instructions first
+  // Always loads instructions first when a student selects any test
   const handleSelectExamFromCatalog = useCallback(async (exam: ExamItem) => {
     setSelectedExam(exam);
     setErrorMessage(null);
     setLoading(true);
 
     try {
-      // Pre-load questions into cache/state while user reads instructions
-      const data = await getOrFetchExamQuestions(exam.id);
+      const data = await getOrFetchExamQuestions(exam.id, exam.filePath);
       setQuestions(data);
-      // Explicitly show instructions screen
       setActiveScreen("instructions");
     } catch (err: unknown) {
       const message =
@@ -97,10 +94,9 @@ export function ExamPortal() {
     }
   }, []);
 
-  // When user clicks "I am Ready to Begin" on Instructions page
+  // When user clicks "I am Ready to Begin" on the Instructions screen
   const handleStartExam = useCallback(() => {
     if (!selectedExam) return;
-    // Activate the exam session in localStorage only now
     localStorage.setItem("cbt_active_exam_id", selectedExam.id);
     setActiveScreen("cbt");
   }, [selectedExam]);
@@ -137,7 +133,6 @@ export function ExamPortal() {
 
     setQuestions(reordered);
     setUserAnswers({});
-    // Send back to instructions for fresh reattempt confirmation
     setActiveScreen("instructions");
   }, [selectedExam, questions]);
 
@@ -191,19 +186,18 @@ export function ExamPortal() {
     };
   }, [questions, userAnswers]);
 
-  // 1. Loading screen
   if (loading) {
     return (
       <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center p-4">
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col items-center max-w-sm text-center">
           <Loader2 className="w-8 h-8 text-blue-600 animate-spin mb-3" />
-          <h3 className="font-bold text-sm text-slate-800">Loading Exam Details...</h3>
+          <h3 className="font-bold text-sm text-slate-800">Preparing Test Environment...</h3>
+          <p className="text-xs text-slate-400 mt-1">Fetching and caching question papers.</p>
         </div>
       </div>
     );
   }
 
-  // 2. Error screen
   if (errorMessage) {
     return (
       <ErrorScreen
@@ -215,7 +209,6 @@ export function ExamPortal() {
     );
   }
 
-  // 3. Instructions screen (Mandatory before starting CBT)
   if (activeScreen === "instructions" && selectedExam) {
     return (
       <ExamInstructions
@@ -226,7 +219,6 @@ export function ExamPortal() {
     );
   }
 
-  // 4. CBT Exam Engine
   if (activeScreen === "cbt" && selectedExam && questions.length > 0) {
     return (
       <CBTExamEngine
@@ -238,7 +230,6 @@ export function ExamPortal() {
     );
   }
 
-  // 5. Result Scorecard
   if (activeScreen === "result" && selectedExam) {
     return (
       <Scorecard
@@ -252,6 +243,5 @@ export function ExamPortal() {
     );
   }
 
-  // 6. Home Catalog (Default)
   return <HomePage onSelectExam={handleSelectExamFromCatalog} />;
 }

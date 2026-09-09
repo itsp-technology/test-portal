@@ -166,6 +166,21 @@ export const AVAILABLE_TESTS: ExamItem[] = [
     badge: "New",
     isFree: true,
   },
+    {
+    id: "ssc-cgl-tier1-mock",
+    filePath: "tests/cgl/fullmock/ssc-cgl-tier1-mock.md",
+    title: "SSC CGL 2026: Tier-1 Full Length Mini Mock Test",
+    category: "SSC",
+    subCategory: "SSC CGL",
+    subject: "Combined Sectional Drill",
+    chapter: "Reasoning, GA, Quantitative & English",
+    totalQuestions: 20,
+    durationMins: 20,
+    maxMarks: 40, // 20 questions * 2 marks
+    difficulty: "Moderate",
+     badge: "New",
+    isFree: true,
+  },
 ];
 
 export const CATEGORY_TAXONOMY: Record<string, string[]> = {

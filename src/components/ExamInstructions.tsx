@@ -7,11 +7,9 @@ import {
   HelpCircle,
   Award,
   AlertTriangle,
-  CheckSquare,
   ArrowLeft,
   Play,
   FileText,
-  ShieldCheck,
 } from "lucide-react";
 
 interface ExamInstructionsProps {
@@ -29,7 +27,6 @@ export const ExamInstructions: React.FC<ExamInstructionsProps> = ({
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-800 flex flex-col justify-between">
-      {/* Top Header */}
       <header className="bg-white border-b border-slate-200 px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-xs sticky top-0 z-30">
         <div className="flex items-center gap-3">
           <button
@@ -54,9 +51,7 @@ export const ExamInstructions: React.FC<ExamInstructionsProps> = ({
         </span>
       </header>
 
-      {/* Main Content */}
       <main className="max-w-4xl w-full mx-auto p-4 sm:p-8 space-y-6">
-        {/* Test Overview Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs text-center">
             <Clock className="w-5 h-5 text-blue-600 mx-auto mb-1.5" />
@@ -80,7 +75,6 @@ export const ExamInstructions: React.FC<ExamInstructionsProps> = ({
           </div>
         </div>
 
-        {/* Instructions Body Card */}
         <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6 text-xs sm:text-sm text-slate-700 leading-relaxed">
           <div className="flex items-center gap-2 border-b border-slate-100 pb-3 font-black text-slate-900 text-sm uppercase tracking-wider">
             <FileText className="w-4 h-4 text-blue-600" />
@@ -93,6 +87,7 @@ export const ExamInstructions: React.FC<ExamInstructionsProps> = ({
               <ul className="list-disc list-inside space-y-1.5 pl-2 text-slate-600">
                 <li>Total duration of the examination is <strong>{exam.durationMins} minutes</strong>.</li>
                 <li>The countdown timer at the top right displays the remaining time. When the timer reaches zero, the test will <strong>automatically submit</strong>.</li>
+                <li>You can translate any individual question to <strong>हिंदी</strong> at any time using the language button on the question card.</li>
                 <li>Do not close or reload the browser window during the test. Your answers are automatically saved securely.</li>
               </ul>
             </section>
@@ -114,31 +109,8 @@ export const ExamInstructions: React.FC<ExamInstructionsProps> = ({
                 </div>
               </div>
             </section>
-
-            <section className="space-y-2">
-              <h2 className="font-black text-slate-900 text-xs sm:text-sm">3. Navigating & Palette Status:</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-semibold pt-1">
-                <div className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 border border-slate-200">
-                  <span className="w-3 h-3 rounded-full bg-slate-200 shrink-0" />
-                  <span className="text-[11px] text-slate-600">Not Visited</span>
-                </div>
-                <div className="flex items-center gap-2 p-2 rounded-xl bg-rose-50 border border-rose-200">
-                  <span className="w-3 h-3 rounded-full bg-rose-300 shrink-0" />
-                  <span className="text-[11px] text-rose-700">Unanswered</span>
-                </div>
-                <div className="flex items-center gap-2 p-2 rounded-xl bg-emerald-50 border border-emerald-200">
-                  <span className="w-3 h-3 rounded-full bg-emerald-600 shrink-0" />
-                  <span className="text-[11px] text-emerald-700">Answered</span>
-                </div>
-                <div className="flex items-center gap-2 p-2 rounded-xl bg-purple-50 border border-purple-200">
-                  <span className="w-3 h-3 rounded-full bg-purple-600 shrink-0" />
-                  <span className="text-[11px] text-purple-700">Marked Review</span>
-                </div>
-              </div>
-            </section>
           </div>
 
-          {/* Declaration Checkbox */}
           <div className="border-t border-slate-100 pt-5">
             <label className="flex items-start gap-3 cursor-pointer select-none p-3.5 rounded-2xl bg-blue-50/50 border border-blue-200 hover:bg-blue-50 transition">
               <input
@@ -154,7 +126,6 @@ export const ExamInstructions: React.FC<ExamInstructionsProps> = ({
           </div>
         </div>
 
-        {/* Action Controls */}
         <div className="flex items-center justify-between gap-3 pb-8">
           <button
             onClick={onBack}

@@ -12,6 +12,7 @@ export type QuestionType = "MCQ" | "MSQ" | "NAT";
 
 export interface ExamItem {
   id: string;
+  filePath?: string; // Relative path inside public/ (e.g. "tests/cgl/fullmock/ssc-cgl-tier1-mock.md")
   title: string;
   category: ExamCategory;
   subCategory?: string; // e.g. "SSC CGL", "SSC CHSL", "GS Paper 1", "CSAT"
