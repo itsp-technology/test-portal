@@ -1,30 +1,41 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { memo } from "react";
 import katex from "katex";
+import "katex/dist/katex.min.css";
 
-export const MathText: React.FC<{ content: string; className?: string }> = ({
-  content,
-  className,
-}) => {
-  const renderedHTML = useMemo(() => {
-    if (!content) return "";
-    let processed = content.replace(/\$\$([\s\S]*?)\$\$/g, (_, eq) => {
-      try {
-        return katex.renderToString(eq, { displayMode: true, throwOnError: false });
-      } catch {
-        return eq;
-      }
-    });
-    processed = processed.replace(/\$([^\$\n]+?)\$/g, (_, eq) => {
-      try {
-        return katex.renderToString(eq, { displayMode: false, throwOnError: false });
-      } catch {
-        return eq;
-      }
-    });
-    return processed.replace(/\n/g, "<br/>");
-  }, [content]);
+interface MathTextProps {
+  content: string;
+}
 
-  return <span className={className} dangerouslySetInnerHTML={{ __html: renderedHTML }} />;
-};
+export const MathText = memo(function MathText({ content }: MathTextProps) {
+  if (!content) return null;
+
+  // Split by $$display$$ and $inline$
+  const parts = content.split(/(\$\$[\s\S]*?\$\$|\$[^\$]+?\$)/g);
+
+  return (
+    <span className="leading-relaxed">
+      {parts.map((part, index) => {
+        if (part.startsWith("$$") && part.endsWith("$$")) {
+          const formula = part.slice(2, -2).trim();
+          try {
+            const html = katex.renderToString(formula, { displayMode: true, throwOnError: false });
+            return <span key={index} dangerouslySetInnerHTML={{ __html: html }} className="block my-2" />;
+          } catch {
+            return <code key={index}>{part}</code>;
+          }
+        } else if (part.startsWith("$") && part.endsWith("$")) {
+          const formula = part.slice(1, -1).trim();
+          try {
+            const html = katex.renderToString(formula, { displayMode: false, throwOnError: false });
+            return <span key={index} dangerouslySetInnerHTML={{ __html: html }} className="inline-block px-0.5" />;
+          } catch {
+            return <code key={index}>{part}</code>;
+          }
+        }
+        return <span key={index}>{part}</span>;
+      })}
+    </span>
+  );
+});
