@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "dev.workers.viveksession02.bug_fix_test_portal.twa",
+        "sha256_cert_fingerprints": ["98:3B:B1:08:92:F1:D0:E1:69:3E:67:F0:EE:F0:D4:5E:06:9D:06:D2:70:F8:D2:90:D2:C8:09:E2:C6:90:07:E2"]
+      }
+    }]
