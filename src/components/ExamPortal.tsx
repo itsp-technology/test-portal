@@ -7,6 +7,7 @@ import { AVAILABLE_TESTS } from "@/data/exams";
 import { shuffleQuestions } from "@/utils/markdownParser";
 import { getOrFetchExamQuestions, invalidateExamCache } from "@/utils/testCache";
 import { HomePage } from "@/components/HomePage";
+import { ExamInstructions } from "@/components/ExamInstructions";
 import { CBTExamEngine } from "@/components/CBTExamEngine";
 import { Scorecard } from "@/components/Scorecard";
 import { ErrorScreen } from "@/components/ErrorScreen";
@@ -34,27 +35,33 @@ export function ExamPortal() {
     return [];
   });
 
-  const [activeScreen, setActiveScreen] = useState<"home" | "cbt" | "result">(() => {
+  // Only restore directly to "cbt" if the user was actively in an ongoing test
+  const [activeScreen, setActiveScreen] = useState<"home" | "instructions" | "cbt" | "result">(() => {
     if (typeof window === "undefined") return "home";
     const savedId = localStorage.getItem("cbt_active_exam_id");
-    const cached = savedId ? localStorage.getItem(`cbt_cached_q_${savedId}`) : null;
-    return savedId && cached ? "cbt" : "home";
+    if (!savedId) return "home";
+
+    // Verify if there was an ongoing attempt saved
+    const hasActiveProgress =
+      localStorage.getItem(`cbt_exam_state_${savedId}_visited`) !== null ||
+      localStorage.getItem(`cbt_exam_state_${savedId}_answers`) !== null;
+
+    return hasActiveProgress ? "cbt" : "home";
   });
 
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [userAnswers, setUserAnswers] = useState<Record<number, string[]>>({});
 
-  // Background recovery only if ID exists without cached questions
+  // Background recovery on hard reload if test was genuinely mid-exam
   useEffect(() => {
-    if (!selectedExam || questions.length > 0) return;
+    if (!selectedExam || questions.length > 0 || activeScreen !== "cbt") return;
 
     let isMounted = true;
     getOrFetchExamQuestions(selectedExam.id)
       .then((data) => {
         if (isMounted && data.length > 0) {
           setQuestions(data);
-          setActiveScreen("cbt");
         }
       })
       .catch((err: unknown) => {
@@ -67,34 +74,36 @@ export function ExamPortal() {
     return () => {
       isMounted = false;
     };
-  }, [selectedExam, questions.length]);
+  }, [selectedExam, questions.length, activeScreen]);
 
-  const loadExamPaper = useCallback(async (exam: ExamItem) => {
+  // Selecting an exam from the home catalog -> ALWAYS open Instructions first
+  const handleSelectExamFromCatalog = useCallback(async (exam: ExamItem) => {
     setSelectedExam(exam);
     setErrorMessage(null);
-    localStorage.setItem("cbt_active_exam_id", exam.id);
+    setLoading(true);
 
-    // Fast memory & local read first (0ms latency path)
     try {
+      // Pre-load questions into cache/state while user reads instructions
       const data = await getOrFetchExamQuestions(exam.id);
       setQuestions(data);
-      setActiveScreen("cbt");
+      // Explicitly show instructions screen
+      setActiveScreen("instructions");
     } catch (err: unknown) {
-      setLoading(true);
-      try {
-        const fallbackData = await getOrFetchExamQuestions(exam.id);
-        setQuestions(fallbackData);
-        setActiveScreen("cbt");
-      } catch (finalErr: unknown) {
-        localStorage.removeItem("cbt_active_exam_id");
-        const message =
-          finalErr instanceof Error ? finalErr.message : "Error loading exam paper.";
-        setErrorMessage(message);
-      } finally {
-        setLoading(false);
-      }
+      const message =
+        err instanceof Error ? err.message : "Error preparing exam questions.";
+      setErrorMessage(message);
+    } finally {
+      setLoading(false);
     }
   }, []);
+
+  // When user clicks "I am Ready to Begin" on Instructions page
+  const handleStartExam = useCallback(() => {
+    if (!selectedExam) return;
+    // Activate the exam session in localStorage only now
+    localStorage.setItem("cbt_active_exam_id", selectedExam.id);
+    setActiveScreen("cbt");
+  }, [selectedExam]);
 
   const handleBackToHome = useCallback(() => {
     if (selectedExam) {
@@ -128,7 +137,8 @@ export function ExamPortal() {
 
     setQuestions(reordered);
     setUserAnswers({});
-    setActiveScreen("cbt");
+    // Send back to instructions for fresh reattempt confirmation
+    setActiveScreen("instructions");
   }, [selectedExam, questions]);
 
   const handleSubmitExam = useCallback((data: {
@@ -181,28 +191,42 @@ export function ExamPortal() {
     };
   }, [questions, userAnswers]);
 
+  // 1. Loading screen
   if (loading) {
     return (
       <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center p-4">
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col items-center max-w-sm text-center">
           <Loader2 className="w-8 h-8 text-blue-600 animate-spin mb-3" />
-          <h3 className="font-bold text-sm text-slate-800">Loading Exam Environment...</h3>
+          <h3 className="font-bold text-sm text-slate-800">Loading Exam Details...</h3>
         </div>
       </div>
     );
   }
 
+  // 2. Error screen
   if (errorMessage) {
     return (
       <ErrorScreen
         message={errorMessage}
         testTitle={selectedExam?.title}
         onBackToCatalog={handleBackToHome}
-        onRetry={selectedExam ? () => loadExamPaper(selectedExam) : undefined}
+        onRetry={selectedExam ? () => handleSelectExamFromCatalog(selectedExam) : undefined}
       />
     );
   }
 
+  // 3. Instructions screen (Mandatory before starting CBT)
+  if (activeScreen === "instructions" && selectedExam) {
+    return (
+      <ExamInstructions
+        exam={selectedExam}
+        onBack={handleBackToHome}
+        onStartExam={handleStartExam}
+      />
+    );
+  }
+
+  // 4. CBT Exam Engine
   if (activeScreen === "cbt" && selectedExam && questions.length > 0) {
     return (
       <CBTExamEngine
@@ -214,6 +238,7 @@ export function ExamPortal() {
     );
   }
 
+  // 5. Result Scorecard
   if (activeScreen === "result" && selectedExam) {
     return (
       <Scorecard
@@ -227,5 +252,6 @@ export function ExamPortal() {
     );
   }
 
-  return <HomePage onSelectExam={loadExamPaper} />;
+  // 6. Home Catalog (Default)
+  return <HomePage onSelectExam={handleSelectExamFromCatalog} />;
 }

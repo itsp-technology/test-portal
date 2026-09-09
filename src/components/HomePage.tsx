@@ -99,11 +99,16 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
               <BookOpen className="w-4 h-4" />
             </div>
             <div>
-              <h1 className="text-sm sm:text-base font-black tracking-tight leading-tight">
-                National Mock Test Portal
-              </h1>
+              <div className="flex items-center gap-1.5">
+                <h1 className="text-sm sm:text-base font-black tracking-tight leading-tight">
+                  Free Mock Test Portal
+                </h1>
+                <span className="text-[9px] font-black uppercase px-1.5 py-0.5 bg-emerald-500 text-white rounded-md tracking-wider">
+                  100% Free
+                </span>
+              </div>
               <p className="text-[10px] text-slate-300">
-                Official pattern computer-based tests, sectionals & chapter drills
+                Free official pattern computer-based tests, sectionals & chapter drills
               </p>
             </div>
           </div>
