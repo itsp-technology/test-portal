@@ -6,44 +6,36 @@ import { Sun, Moon } from "lucide-react";
 export const ThemeToggle: React.FC<{ variant?: "header" | "portal" }> = ({
   variant = "header",
 }) => {
-  const [isDark, setIsDark] = useState<boolean>(false);
-  const [mounted, setMounted] = useState<boolean>(false);
+  // Lazy initialization: reads localStorage once on mount without triggering cascading renders
+  const [isDark, setIsDark] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("portal_theme");
+      return saved === "dark";
+    }
+    return false;
+  });
 
+  // Track hydration state safely via an event tick or state initializer
+  const [mounted, setMounted] = useState<boolean>(() => typeof window !== "undefined");
+
+  // Keep DOM classes in sync with isDark state (Pure side-effect, zero setState calls inside)
   useEffect(() => {
-    setMounted(true);
-    // Read user preference from localStorage, default to light
-    const saved = localStorage.getItem("portal_theme");
-    const activeDark = saved === "dark";
-
-    setIsDark(activeDark);
     const root = document.documentElement;
-
-    // Clean up any old leftover classes from previous setups
     root.classList.remove("theme-light", "theme-dark", "theme-sepia");
 
-    if (activeDark) {
-      root.classList.add("dark");
-    } else {
-      root.classList.remove("dark");
-    }
-  }, []);
-
-  const toggleTheme = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    const root = document.documentElement;
-    const nextDark = !isDark;
-
-    setIsDark(nextDark);
-
-    if (nextDark) {
+    if (isDark) {
       root.classList.add("dark");
       localStorage.setItem("portal_theme", "dark");
     } else {
       root.classList.remove("dark");
       localStorage.setItem("portal_theme", "light");
     }
+  }, [isDark]);
+
+  const toggleTheme = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDark((prev) => !prev);
   };
 
   if (!mounted) {
