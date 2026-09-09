@@ -102,7 +102,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectExam }) => {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base sm:text-lg font-black tracking-tight leading-tight">
-                  Free Mock Test Portal
+                  Frees Mock Test Portal v1
                 </h1>
                 <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-emerald-500 text-white rounded-md tracking-wider">
                   100% Free
