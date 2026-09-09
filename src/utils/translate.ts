@@ -1,6 +1,6 @@
-// Fast In-Memory & LocalStorage Cache
+// Persistent in-memory + local storage translation cache
 const MEMORY_CACHE = new Map<string, string>();
-const STORAGE_PREFIX = "cbt_trans_clean_v3_";
+const STORAGE_PREFIX = "cbt_trans_clean_v5_";
 
 function hashKey(str: string): string {
   let hash = 5381;
@@ -10,7 +10,7 @@ function hashKey(str: string): string {
   return (hash >>> 0).toString(36);
 }
 
-// Check if a segment is a math formula
+// Check if a segment is a math formula ($...$ or $$...$$)
 function isMathBlock(text: string): boolean {
   const trimmed = text.trim();
   return (
@@ -22,75 +22,113 @@ function isMathBlock(text: string): boolean {
 // Check if text has English words that actually need translation
 function hasTranslatableText(text: string): boolean {
   if (!text) return false;
-  // If no math, does it have at least 2 consecutive alphabetic characters?
   return /[a-zA-Z]{2,}/.test(text);
 }
 
-// Network fetch with abort timeout
-async function fetchWithTimeout(url: string, timeoutMs = 2500): Promise<Response> {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { signal: controller.signal });
-  } finally {
-    clearTimeout(id);
-  }
+// 1. JSONP Request Helper (Bypasses CORS completely in both web and Android WebViews)
+function fetchJsonp(url: string, timeoutMs = 3500): Promise<any> {
+  return new Promise((resolve, reject) => {
+    if (typeof window === "undefined") return resolve(null);
+
+    const callbackName = `jsonp_trans_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+    const script = document.createElement("script");
+    let timer: NodeJS.Timeout | null = null;
+
+    const cleanup = () => {
+      if (timer) clearTimeout(timer);
+      delete (window as any)[callbackName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    };
+
+    timer = setTimeout(() => {
+      cleanup();
+      reject(new Error("JSONP Timeout"));
+    }, timeoutMs);
+
+    (window as any)[callbackName] = (data: any) => {
+      cleanup();
+      resolve(data);
+    };
+
+    script.src = `${url}&callback=${callbackName}`;
+    script.onerror = () => {
+      cleanup();
+      reject(new Error("JSONP Load Error"));
+    };
+
+    document.head.appendChild(script);
+  });
 }
 
-// Pure text translator (ONLY called on plain English phrases, NEVER on math)
+// 2. Multi-Provider Translator (Zero CORS errors)
 async function translatePlainPhrase(text: string): Promise<string> {
   const trimmed = text.trim();
   if (!trimmed || !hasTranslatableText(trimmed)) return text;
 
-  // Preserve leading/trailing spaces so sentence assembly is seamless
   const leadingSpace = text.match(/^\s*/)?.[0] || "";
   const trailingSpace = text.match(/\s*$/)?.[0] || "";
 
-  // Check cache for this exact phrase
   const key = hashKey(trimmed);
   if (MEMORY_CACHE.has(key)) {
     return leadingSpace + MEMORY_CACHE.get(key)! + trailingSpace;
   }
 
-  // Provider 1: Google Translate Single Gateway
+  // Provider 1: Google Translate Single GTX Gateway (Native CORS-Friendly Fetch)
   try {
-    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=hi&dt=t&q=${encodeURIComponent(trimmed)}`;
-    const res = await fetchWithTimeout(url, 2200);
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=hi&dt=t&q=${encodeURIComponent(
+      trimmed
+    )}`;
+    
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2800);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
+
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data) && Array.isArray(data[0])) {
-        const result = data[0].map((item: unknown[]) => (Array.isArray(item) ? item[0] : "")).join("");
-        if (result && result.trim()) {
-          MEMORY_CACHE.set(key, result);
-          return leadingSpace + result + trailingSpace;
+        const translated = data[0]
+          .map((item: unknown[]) => (Array.isArray(item) ? item[0] : ""))
+          .join("");
+        if (translated && translated.trim()) {
+          MEMORY_CACHE.set(key, translated);
+          return leadingSpace + translated + trailingSpace;
         }
       }
     }
   } catch {}
 
-  // Provider 2: Lingva Proxy Gateway (Fallback)
+  // Provider 2: MyMemory JSONP Protocol (Completely immune to CORS & 403 blocks)
   try {
-    const url = `https://lingva.ml/api/v1/en/hi/${encodeURIComponent(trimmed)}`;
-    const res = await fetchWithTimeout(url, 2500);
-    if (res.ok) {
-      const data = await res.json();
-      if (data?.translation) {
-        MEMORY_CACHE.set(key, data.translation);
-        return leadingSpace + data.translation + trailingSpace;
+    const jsonpUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(
+      trimmed
+    )}&langpair=en|hi`;
+    const data = await fetchJsonp(jsonpUrl, 3000);
+    if (data?.responseData?.translatedText) {
+      const translated = data.responseData.translatedText;
+      if (translated && translated.trim()) {
+        MEMORY_CACHE.set(key, translated);
+        return leadingSpace + translated + trailingSpace;
       }
     }
   } catch {}
 
-  // Provider 3: MyMemory Fallback
+  // Provider 3: MyMemory Standard Fetch Fallback
   try {
-    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(trimmed)}&langpair=en|hi`;
-    const res = await fetchWithTimeout(url, 2500);
+    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(
+      trimmed
+    )}&langpair=en|hi`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2500);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
+
     if (res.ok) {
       const data = await res.json();
       if (data?.responseData?.translatedText) {
-        const result = data.responseData.translatedText;
-        MEMORY_CACHE.set(key, result);
-        return leadingSpace + result + trailingSpace;
+        const translated = data.responseData.translatedText;
+        MEMORY_CACHE.set(key, translated);
+        return leadingSpace + translated + trailingSpace;
       }
     }
   } catch {}
@@ -98,23 +136,23 @@ async function translatePlainPhrase(text: string): Promise<string> {
   return text;
 }
 
-// Main Function: Splice, Translate English Segments, Re-stitch Exact Math
+// 3. Segment Splicer: Protects Math ($...$) completely, only translates English
 export async function translateTextToHindi(rawText: string): Promise<string> {
   if (!rawText || !rawText.trim()) return rawText;
 
-  // Fast-path: Entire text is pure math (e.g. options like "$(A - B) \cup (B \cap A)$")
+  // If pure formula, return immediately with zero delay
   if (isMathBlock(rawText) || !hasTranslatableText(rawText)) {
     return rawText;
   }
 
   const overallKey = hashKey(rawText);
 
-  // Check memory cache
+  // Check In-Memory Cache
   if (MEMORY_CACHE.has(overallKey)) {
     return MEMORY_CACHE.get(overallKey)!;
   }
 
-  // Check local storage
+  // Check LocalStorage Cache
   if (typeof window !== "undefined") {
     try {
       const disk = localStorage.getItem(`${STORAGE_PREFIX}${overallKey}`);
@@ -125,14 +163,14 @@ export async function translateTextToHindi(rawText: string): Promise<string> {
     } catch {}
   }
 
-  // Split text by KaTeX delimiters ($$...$$ or $...$) while keeping delimiters in the array
+  // Split by KaTeX delimiters ($$...$$ or $...$) while retaining delimiters
   const segments = rawText.split(/(\$\$[\s\S]*?\$\$|\$[^\$]+?\$)/g);
 
-  // Translate only the English segments in parallel
+  // Translate only plain English fragments concurrently
   const translatedSegments = await Promise.all(
     segments.map(async (seg) => {
       if (!seg) return "";
-      // If it's a math expression, DO NOT TOUCH IT AT ALL
+      // Untouched Math blocks
       if (isMathBlock(seg)) {
         return seg;
       }
@@ -153,7 +191,7 @@ export async function translateTextToHindi(rawText: string): Promise<string> {
   return finalResult;
 }
 
-// Question-Level Concurrent Runner
+// 4. Batch Concurrent Runner for Question + Options
 export async function translateQuestionFull(q: {
   prompt: string;
   options: { key: string; text: string }[];
