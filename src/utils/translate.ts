@@ -1,8 +1,7 @@
-// Persistent in-memory + local storage translation cache
+// Fast In-Memory & LocalStorage Cache
 const MEMORY_CACHE = new Map<string, string>();
-const STORAGE_PREFIX = "trans_hi_v1_";
+const STORAGE_PREFIX = "cbt_trans_clean_v3_";
 
-// Fast hash for cache keys
 function hashKey(str: string): string {
   let hash = 5381;
   for (let i = 0; i < str.length; i++) {
@@ -11,125 +10,150 @@ function hashKey(str: string): string {
   return (hash >>> 0).toString(36);
 }
 
-// 1. Math Formula Masking: Protects KaTeX syntax ($...$) from being mangled
-function maskMathFormulas(text: string): { maskedText: string; tokens: string[] } {
-  const tokens: string[] = [];
-  // Match display ($$..$$) or inline ($..$) math
-  const maskedText = text.replace(/(\$\$[\s\S]*?\$\$|\$[^\$]+?\$)/g, (match) => {
-    const placeholder = `__MATH_${tokens.length}__`;
-    tokens.push(match);
-    return placeholder;
-  });
-  return { maskedText, tokens };
+// Check if a segment is a math formula
+function isMathBlock(text: string): boolean {
+  const trimmed = text.trim();
+  return (
+    (trimmed.startsWith("$$") && trimmed.endsWith("$$") && trimmed.length >= 4) ||
+    (trimmed.startsWith("$") && trimmed.endsWith("$") && trimmed.length >= 2)
+  );
 }
 
-function unmaskMathFormulas(text: string, tokens: string[]): string {
-  let unmasked = text;
-  tokens.forEach((token, index) => {
-    const placeholder = new RegExp(`__MATH_${index}__`, "g");
-    unmasked = unmasked.replace(placeholder, token);
-  });
-  return unmasked;
+// Check if text has English words that actually need translation
+function hasTranslatableText(text: string): boolean {
+  if (!text) return false;
+  // If no math, does it have at least 2 consecutive alphabetic characters?
+  return /[a-zA-Z]{2,}/.test(text);
 }
 
-// 2. Multi-Endpoint Fallback Engine (Google Cloud Translation Free Gateway & MyMemory)
-async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 3500): Promise<Response> {
+// Network fetch with abort timeout
+async function fetchWithTimeout(url: string, timeoutMs = 2500): Promise<Response> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { ...options, signal: controller.signal });
-    return res;
+    return await fetch(url, { signal: controller.signal });
   } finally {
-    clearTimeout(timeoutId);
+    clearTimeout(id);
   }
 }
 
-async function requestTranslation(query: string): Promise<string> {
-  // Provider 1: Google Translate Single-Request Gateway (Fastest, ~120ms)
+// Pure text translator (ONLY called on plain English phrases, NEVER on math)
+async function translatePlainPhrase(text: string): Promise<string> {
+  const trimmed = text.trim();
+  if (!trimmed || !hasTranslatableText(trimmed)) return text;
+
+  // Preserve leading/trailing spaces so sentence assembly is seamless
+  const leadingSpace = text.match(/^\s*/)?.[0] || "";
+  const trailingSpace = text.match(/\s*$/)?.[0] || "";
+
+  // Check cache for this exact phrase
+  const key = hashKey(trimmed);
+  if (MEMORY_CACHE.has(key)) {
+    return leadingSpace + MEMORY_CACHE.get(key)! + trailingSpace;
+  }
+
+  // Provider 1: Google Translate Single Gateway
   try {
-    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=hi&dt=t&q=${encodeURIComponent(
-      query
-    )}`;
-    const res = await fetchWithTimeout(url, { method: "GET" }, 3000);
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=hi&dt=t&q=${encodeURIComponent(trimmed)}`;
+    const res = await fetchWithTimeout(url, 2200);
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data) && Array.isArray(data[0])) {
-        return data[0].map((item: unknown[]) => item[0]).join("");
+        const result = data[0].map((item: unknown[]) => (Array.isArray(item) ? item[0] : "")).join("");
+        if (result && result.trim()) {
+          MEMORY_CACHE.set(key, result);
+          return leadingSpace + result + trailingSpace;
+        }
       }
     }
   } catch {}
 
-  // Provider 2: Lingva Proxy Gateway (Backup)
+  // Provider 2: Lingva Proxy Gateway (Fallback)
   try {
-    const url = `https://lingva.ml/api/v1/en/hi/${encodeURIComponent(query)}`;
-    const res = await fetchWithTimeout(url, { method: "GET" }, 3500);
+    const url = `https://lingva.ml/api/v1/en/hi/${encodeURIComponent(trimmed)}`;
+    const res = await fetchWithTimeout(url, 2500);
     if (res.ok) {
       const data = await res.json();
-      if (data && data.translation) {
-        return data.translation;
+      if (data?.translation) {
+        MEMORY_CACHE.set(key, data.translation);
+        return leadingSpace + data.translation + trailingSpace;
       }
     }
   } catch {}
 
-  // Provider 3: MyMemory Translation API (High-reliability fallback)
+  // Provider 3: MyMemory Fallback
   try {
-    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(query)}&langpair=en|hi`;
-    const res = await fetchWithTimeout(url, { method: "GET" }, 3500);
+    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(trimmed)}&langpair=en|hi`;
+    const res = await fetchWithTimeout(url, 2500);
     if (res.ok) {
       const data = await res.json();
       if (data?.responseData?.translatedText) {
-        return data.responseData.translatedText;
+        const result = data.responseData.translatedText;
+        MEMORY_CACHE.set(key, result);
+        return leadingSpace + result + trailingSpace;
       }
     }
   } catch {}
 
-  // If all external sources fail, return original query without breaking UI
-  return query;
+  return text;
 }
 
-// 3. Main Translate Function with 0ms Cache Lookup & Formula Protection
+// Main Function: Splice, Translate English Segments, Re-stitch Exact Math
 export async function translateTextToHindi(rawText: string): Promise<string> {
   if (!rawText || !rawText.trim()) return rawText;
 
-  const cacheKey = hashKey(rawText);
-
-  // Check Layer 1: In-Memory RAM Cache (Instant 0ms)
-  if (MEMORY_CACHE.has(cacheKey)) {
-    return MEMORY_CACHE.get(cacheKey)!;
+  // Fast-path: Entire text is pure math (e.g. options like "$(A - B) \cup (B \cap A)$")
+  if (isMathBlock(rawText) || !hasTranslatableText(rawText)) {
+    return rawText;
   }
 
-  // Check Layer 2: Browser Storage Cache (Instant 0ms)
+  const overallKey = hashKey(rawText);
+
+  // Check memory cache
+  if (MEMORY_CACHE.has(overallKey)) {
+    return MEMORY_CACHE.get(overallKey)!;
+  }
+
+  // Check local storage
   if (typeof window !== "undefined") {
     try {
-      const diskCached = localStorage.getItem(`${STORAGE_PREFIX}${cacheKey}`);
-      if (diskCached) {
-        MEMORY_CACHE.set(cacheKey, diskCached);
-        return diskCached;
+      const disk = localStorage.getItem(`${STORAGE_PREFIX}${overallKey}`);
+      if (disk) {
+        MEMORY_CACHE.set(overallKey, disk);
+        return disk;
       }
     } catch {}
   }
 
-  // Step A: Mask formulas so the translation API only sees clean prose
-  const { maskedText, tokens } = maskMathFormulas(rawText);
+  // Split text by KaTeX delimiters ($$...$$ or $...$) while keeping delimiters in the array
+  const segments = rawText.split(/(\$\$[\s\S]*?\$\$|\$[^\$]+?\$)/g);
 
-  // Step B: Fetch translated string
-  const rawTranslated = await requestTranslation(maskedText);
+  // Translate only the English segments in parallel
+  const translatedSegments = await Promise.all(
+    segments.map(async (seg) => {
+      if (!seg) return "";
+      // If it's a math expression, DO NOT TOUCH IT AT ALL
+      if (isMathBlock(seg)) {
+        return seg;
+      }
+      return await translatePlainPhrase(seg);
+    })
+  );
 
-  // Step C: Restore exact LaTeX formulas into original positions
-  const finalResult = unmaskMathFormulas(rawTranslated, tokens);
+  const finalResult = translatedSegments.join("");
 
-  // Save to both caches
-  MEMORY_CACHE.set(cacheKey, finalResult);
+  // Store in cache
+  MEMORY_CACHE.set(overallKey, finalResult);
   if (typeof window !== "undefined") {
     try {
-      localStorage.setItem(`${STORAGE_PREFIX}${cacheKey}`, finalResult);
+      localStorage.setItem(`${STORAGE_PREFIX}${overallKey}`, finalResult);
     } catch {}
   }
 
   return finalResult;
 }
 
-// 4. Batch Parallel Translator: Translates prompt & all 4 options concurrently
+// Question-Level Concurrent Runner
 export async function translateQuestionFull(q: {
   prompt: string;
   options: { key: string; text: string }[];
