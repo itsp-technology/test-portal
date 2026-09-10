@@ -332,3 +332,7 @@ export const AVAILABLE_TESTS: ExamItem[] = [
 3. Filter by the category tab (e.g., **SSC**).
 4. Click **Attempt CBT Now** on the newly created card.
 5. Confirm the instructions page opens, tick the declaration box, and verify that the questions load with zero latency.
+
+
+
+npx autocannon -c 100 -d 30 https://bug-fix-test-portal.viveksession02.workers.dev/

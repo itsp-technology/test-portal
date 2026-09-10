@@ -59,7 +59,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // FIX GAP 1: INSTANT NAVIGATION (Cache-First + Background Revalidate)
+  // INSTANT NAVIGATION (Cache-First + Background Revalidate)
   if (req.mode === "navigate") {
     event.respondWith(
       (async () => {
@@ -88,7 +88,7 @@ self.addEventListener("fetch", (event) => {
         const netRes = await networkPromise;
         if (netRes) return netRes;
 
-        // FIX GAP 2: Safe offline fallback (never return Response.error)
+        // Safe offline fallback (never return Response.error)
         return new Response(
           `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="background:#090d16;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;margin:0"><div style="text-align:center"><h2>Offline Mode</h2><p>Please open once with internet to sync papers.</p><button onclick="window.location.reload()" style="background:#2563eb;color:#fff;border:none;padding:10px 20px;border-radius:10px;font-weight:bold;cursor:pointer">Retry</button></div></body></html>`,
           { headers: { "Content-Type": "text/html" }, status: 200 }
@@ -105,11 +105,12 @@ self.addEventListener("fetch", (event) => {
       const cachedResponse = await cache.match(req, { ignoreSearch: true });
 
       if (cachedResponse) {
-        // Revalidate in background silently
+        // Revalidate in background silently without blocking the cloned stream
         fetch(req)
           .then((fresh) => {
             if (fresh && fresh.status === 200 && url.origin === self.location.origin) {
-              cache.put(req, fresh.clone());
+              const freshClone = fresh.clone();
+              cache.put(req, freshClone);
             }
           })
           .catch(() => {});
@@ -128,7 +129,7 @@ self.addEventListener("fetch", (event) => {
         }
         return networkResponse;
       } catch (err) {
-        // FIX GAP 2: Safe fallbacks for missing assets when offline
+        // Safe fallbacks for missing assets when offline
         if (req.destination === "style") {
           return new Response("", { headers: { "Content-Type": "text/css" }, status: 200 });
         }
